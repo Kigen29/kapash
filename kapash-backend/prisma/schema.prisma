@@ -1,0 +1,391 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// KAPASH — Prisma Database Schema
+// PostgreSQL · Run: npx prisma migrate dev --name init
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ─────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  CUSTOMER
+  PITCH_OWNER
+  ADMIN
+}
+
+enum PitchStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum PitchType {
+  ASTRO_TURF
+  NATURAL_GRASS
+  CONCRETE
+  HYBRID
+}
+
+enum PitchSize {
+  FIVE_A_SIDE
+  SEVEN_A_SIDE
+  ELEVEN_A_SIDE
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  MPESA
+  CARD
+  CASH
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum SlotStatus {
+  AVAILABLE
+  BOOKED
+  BLOCKED
+  HELD
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  PAYMENT_RECEIVED
+  PAYOUT_PROCESSED
+  REVIEW_RECEIVED
+  PITCH_VERIFIED
+  GENERAL
+}
+
+// ── Models ────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(uuid())
+  phone         String    @unique
+  email         String?   @unique
+  name          String
+  avatar        String?
+  role          UserRole  @default(CUSTOMER)
+  isVerified    Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  
+  // OTP verification
+  otpCode       String?
+  otpExpiresAt  DateTime?
+  
+  // Push notifications
+  fcmToken      String?
+  
+  // Referral system
+  referralCode  String    @unique @default(uuid())
+  referredBy    String?
+  referralCount Int       @default(0)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  pitches       Pitch[]
+  bookings      Booking[]
+  reviews       Review[]
+  notifications Notification[]
+  refreshTokens RefreshToken[]
+  payouts       Payout[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Pitch {
+  id          String      @id @default(uuid())
+  ownerId     String
+  name        String
+  description String?     @db.Text
+  
+  // Location
+  address     String
+  city        String      @default("Nairobi")
+  county      String      @default("Nairobi")
+  latitude    Float
+  longitude   Float
+  
+  // Pitch specs
+  type        PitchType   @default(ASTRO_TURF)
+  size        PitchSize   @default(SEVEN_A_SIDE)
+  pricePerHour Float
+  
+  // Status & verification
+  status      PitchStatus @default(PENDING_VERIFICATION)
+  isVerified  Boolean     @default(false)
+  verifiedAt  DateTime?
+  verifiedBy  String?
+  
+  // Ratings (denormalized for speed)
+  avgRating   Float       @default(0)
+  reviewCount Int         @default(0)
+  
+  // Business
+  commissionRate Float    @default(0.13)
+  
+  // Operating hours (JSON: { monday: { open: "06:00", close: "22:00" }, ... })
+  operatingHours Json     @default("{}")
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  owner       User        @relation(fields: [ownerId], references: [id])
+  images      PitchImage[]
+  amenities   PitchAmenity[]
+  bookings    Booking[]
+  reviews     Review[]
+  slots       TimeSlot[]
+  payouts     Payout[]
+
+  @@map("pitches")
+}
+
+model PitchImage {
+  id         String   @id @default(uuid())
+  pitchId    String
+  url        String
+  publicId   String   // Cloudinary public ID for deletion
+  isPrimary  Boolean  @default(false)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  pitch Pitch @relation(fields: [pitchId], references: [id], onDelete: Cascade)
+
+  @@map("pitch_images")
+}
+
+model PitchAmenity {
+  id      String @id @default(uuid())
+  pitchId String
+  name    String
+  icon    String @default("⚽")
+
+  pitch Pitch @relation(fields: [pitchId], references: [id], onDelete: Cascade)
+
+  @@map("pitch_amenities")
+}
+
+model TimeSlot {
+  id        String     @id @default(uuid())
+  pitchId   String
+  date      DateTime   @db.Date
+  startTime String     // "06:00"
+  endTime   String     // "07:00"
+  status    SlotStatus @default(AVAILABLE)
+  
+  // If held: who holds it and when it expires
+  heldBy    String?
+  heldUntil DateTime?
+  
+  // If blocked: reason
+  blockReason String?
+  
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  pitch   Pitch    @relation(fields: [pitchId], references: [id], onDelete: Cascade)
+  booking Booking?
+
+  @@unique([pitchId, date, startTime])
+  @@map("time_slots")
+}
+
+model Booking {
+  id          String        @id @default(uuid())
+  userId      String
+  pitchId     String
+  slotId      String        @unique
+  
+  // Booking details (snapshot at time of booking)
+  pitchName     String
+  pitchAddress  String
+  date          DateTime    @db.Date
+  startTime     String
+  endTime       String
+  durationMins  Int
+  
+  // Pricing (snapshot)
+  pricePerHour  Float
+  totalAmount   Float
+  commissionAmount Float
+  ownerAmount   Float
+  
+  // Status
+  status        BookingStatus @default(PENDING_PAYMENT)
+  
+  // Ticket
+  ticketId      String        @unique @default(uuid())
+  qrCode        String?       // Base64 QR code data
+  
+  // Cancellation
+  cancelledAt   DateTime?
+  cancelReason  String?
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  user    User       @relation(fields: [userId], references: [id])
+  pitch   Pitch      @relation(fields: [pitchId], references: [id])
+  slot    TimeSlot   @relation(fields: [slotId], references: [id])
+  payment Payment?
+  payout  Payout?
+
+  @@map("bookings")
+}
+
+model Payment {
+  id                String        @id @default(uuid())
+  bookingId         String        @unique
+  userId            String
+  
+  amount            Float
+  method            PaymentMethod @default(MPESA)
+  status            PaymentStatus @default(PENDING)
+  
+  // M-Pesa specific
+  mpesaPhone        String?
+  mpesaCheckoutRequestId String?  @unique
+  mpesaMerchantRequestId String?
+  mpesaReceiptNumber     String?
+  mpesaTransactionDate   String?
+  
+  // Failure info
+  resultCode        String?
+  resultDesc        String?
+  
+  // Refund
+  refundedAt        DateTime?
+  refundAmount      Float?
+  
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@map("payments")
+}
+
+model Payout {
+  id          String       @id @default(uuid())
+  ownerId     String
+  pitchId     String
+  bookingId   String       @unique
+  
+  amount      Float
+  status      PayoutStatus @default(PENDING)
+  
+  // M-Pesa B2C
+  mpesaPhone       String?
+  mpesaTransactionId String?
+  
+  scheduledFor DateTime
+  processedAt  DateTime?
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  owner   User    @relation(fields: [ownerId], references: [id])
+  pitch   Pitch   @relation(fields: [pitchId], references: [id])
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@map("payouts")
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  userId    String
+  pitchId   String
+  bookingId String?
+  
+  rating    Int      // 1-5
+  comment   String?  @db.Text
+  
+  ownerReply    String?  @db.Text
+  ownerRepliedAt DateTime?
+  
+  isVisible Boolean  @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id])
+  pitch Pitch @relation(fields: [pitchId], references: [id])
+
+  @@unique([userId, bookingId])
+  @@map("reviews")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String           @db.Text
+  data      Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model OtpSession {
+  id        String   @id @default(uuid())
+  phone     String
+  code      String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("otp_sessions")
+}
