@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, FONT_WEIGHT, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
 
 const MENU = [
   { icon: '🏟️', title: 'Manage Pitches', subtitle: 'Add / edit pitch details, photos', section: 'Venue' },
@@ -15,6 +16,7 @@ const MENU = [
 interface Props { navigation: any; }
 
 export default function OwnerAccountScreen({ navigation }: Props) {
+  const { logout } = useAuth();
   return (
     <View style={styles.container}>
 
@@ -105,7 +107,7 @@ export default function OwnerAccountScreen({ navigation }: Props) {
         })}
 
         {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={() => navigation.replace('Login')}>
+        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
           <Text style={styles.logoutIcon}>🚪</Text>
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>

@@ -2,8 +2,8 @@
  * App.tsx - Root component
  * Place at: App.tsx (root of project)
  */
-
 import React, { useEffect } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from './src/context/AuthContext';
@@ -21,9 +21,11 @@ export default function App() {
   }, []);
 
   return (
-    <AuthProvider>
-      <StatusBar style="light" backgroundColor="#0F1923" />
-      <RootNavigator />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <StatusBar style="light" backgroundColor="#0F1923" />
+        <RootNavigator />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

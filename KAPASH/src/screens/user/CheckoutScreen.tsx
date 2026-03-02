@@ -38,81 +38,87 @@ export default function CheckoutScreen({ route, navigation }: any) {
   // Cleanup polling on unmount
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
-  const pollPaymentStatus = (reqId: string, bookingId: string) => {
-    pollCountRef.current = 0;
-    setStatus('polling');
-    setStatusMsg('Confirming payment...');
+// Replace the entire pollPaymentStatus function
+const pollPaymentStatus = (bookingId: string) => {
+  pollCountRef.current = 0;
+  setStatus('polling');
+  setStatusMsg('Confirming payment...');
 
-    pollRef.current = setInterval(async () => {
-      pollCountRef.current += 1;
-      if (pollCountRef.current > 20) {
-        // Timeout after ~60s
-        clearInterval(pollRef.current!);
-        setStatus('failed');
-        setStatusMsg('Payment timed out. Please try again.');
-        return;
-      }
-
-      try {
-        const { data } = await PAYMENTS.checkStatus(reqId);
-        if (data.status === 'COMPLETED') {
-          clearInterval(pollRef.current!);
-          setStatus('success');
-          navigation.replace('BookingConfirmation', { bookingId });
-        } else if (data.status === 'FAILED' || data.status === 'CANCELLED') {
-          clearInterval(pollRef.current!);
-          setStatus('failed');
-          setStatusMsg(data.message || 'Payment was cancelled or failed.');
-        }
-      } catch {}
-    }, 3000);
-  };
-
-  const handlePay = async () => {
-    const phoneClean = phone.replace(/\s/g, '');
-    if (!phoneClean || phoneClean.length < 9) {
-      Alert.alert('Invalid phone', 'Enter a valid Safaricom number.');
+  pollRef.current = setInterval(async () => {
+    pollCountRef.current += 1;
+    if (pollCountRef.current > 20) {
+      clearInterval(pollRef.current!);
+      setStatus('failed');
+      setStatusMsg('Payment timed out. Please try again.');
       return;
     }
-
-    const formattedPhone = phoneClean.startsWith('0')
-      ? '+254' + phoneClean.slice(1)
-      : phoneClean.startsWith('254')
-      ? '+' + phoneClean
-      : phoneClean;
-
     try {
-      // Step 1: Create booking
-      setStatus('creating_booking');
-      setStatusMsg('Creating booking...');
-      const { data: bookingData } = await BOOKINGS.create({
-        pitchId,
-        slotId,
-        date,
-      });
-      const bookingId = bookingData.booking?.id;
+      const { data } = await PAYMENTS.checkStatus(bookingId);
+      if (data.bookingStatus === 'CONFIRMED') {
+        clearInterval(pollRef.current!);
+        setStatus('success');
+        navigation.replace('BookingConfirmation', { bookingId });
+      } else if (
+        data.paymentStatus === 'FAILED' ||
+        data.bookingStatus === 'CANCELLED'
+      ) {
+        clearInterval(pollRef.current!);
+        setStatus('failed');
+        setStatusMsg('Payment was cancelled or failed. Please try again.');
+      }
+    } catch {}
+  }, 3000);
+};
 
-      // Step 2: Initiate M-Pesa STK push
-      setStatus('initiating_mpesa');
-      setStatusMsg('Sending M-Pesa request...');
-      const { data: payData } = await PAYMENTS.initiateMpesa({
-        bookingId,
-        phone: formattedPhone,
-        amount: total,
-      });
+// Replace the handlePay function
+const handlePay = async () => {
+  const phoneClean = phone.replace(/\s/g, '');
+  if (!phoneClean || phoneClean.length < 9) {
+    Alert.alert('Invalid phone', 'Enter a valid Safaricom number.');
+    return;
+  }
 
-      setCheckoutRequestId(payData.checkoutRequestId);
-      setStatus('awaiting_pin');
-      setStatusMsg('Check your phone for the M-Pesa PIN prompt');
+  const formattedPhone = phoneClean.startsWith('0')
+    ? '+254' + phoneClean.slice(1)
+    : phoneClean.startsWith('254')
+    ? '+' + phoneClean
+    : phoneClean;
 
-      // Step 3: Poll for confirmation
-      setTimeout(() => pollPaymentStatus(payData.checkoutRequestId, bookingId), 5000);
+  try {
+    // Step 1: Create booking
+    setStatus('creating_booking');
+    setStatusMsg('Creating booking...');
+    const { data: bookingData } = await BOOKINGS.create({
+      pitchId,
+      date,
+      startTime,        // ← from route.params
+      endTime,          // ← from route.params
+      paymentMethod: 'MPESA',
+    });
+    const bookingId = bookingData.bookingId;  // ← fixed shape
 
-    } catch (err: any) {
-      setStatus('failed');
-      setStatusMsg(err.message || 'Payment initiation failed. Try again.');
-    }
-  };
+    if (!bookingId) throw new Error('Booking creation failed. Please try again.');
+
+    // Step 2: Initiate M-Pesa STK push
+    setStatus('initiating_mpesa');
+    setStatusMsg('Sending M-Pesa request...');
+    await PAYMENTS.initiateMpesa({
+      bookingId,
+      phone: formattedPhone,
+      amount: total,
+    });
+
+    setStatus('awaiting_pin');
+    setStatusMsg('Check your phone for the M-Pesa PIN prompt');
+
+    // Step 3: Poll for confirmation
+    setTimeout(() => pollPaymentStatus(bookingId), 5000);
+
+  } catch (err: any) {
+    setStatus('failed');
+    setStatusMsg(err.message || 'Payment initiation failed. Try again.');
+  }
+};
 
   const isBusy = ['creating_booking', 'initiating_mpesa', 'polling'].includes(status);
 

@@ -5,8 +5,8 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const DEV_IP = '192.168.1.65'; // ← your PC WiFi IP
-const PORT = 3000;
+const DEV_IP = '192.168.1.64'; // ← your PC WiFi IP
+const PORT = 5000;
 const BASE_URL = `http://${DEV_IP}:${PORT}/api/v1`;
 
 // ─── STORAGE KEYS ─────────────────────────────────────────────────────────────
@@ -148,7 +148,7 @@ export const AUTH = {
       body: JSON.stringify({ phone, otp, name }),
     }, false),
 
-  me: () => apiFetch('/auth/me'),
+  me: () => apiFetch('/users/me'),
 
   refresh: (token: string) =>
     apiFetch('/auth/refresh', {
@@ -188,7 +188,7 @@ export const PITCHES = {
 
 // ─── BOOKINGS ─────────────────────────────────────────────────────────────────
 export const BOOKINGS = {
-  create: (body: { pitchId: string; slotId: string; date: string; notes?: string }) =>
+  create: (body: { pitchId: string; startTime: string; endTime:string; paymentMethod?: 'MPESA' | 'CARD' | 'CASH'; date: string; notes?: string }) =>
     apiFetch('/bookings', { method: 'POST', body: JSON.stringify(body) }),
   list: (params?: Record<string, any>) => {
     const qs = new URLSearchParams();
@@ -204,8 +204,8 @@ export const BOOKINGS = {
 export const PAYMENTS = {
   initiateMpesa: (body: { bookingId: string; phone: string; amount: number }) =>
     apiFetch('/payments/mpesa/initiate', { method: 'POST', body: JSON.stringify(body) }),
-  checkStatus: (checkoutRequestId: string) =>
-    apiFetch(`/payments/mpesa/status/${checkoutRequestId}`),
+  checkStatus: (bookingId: string) =>
+    apiFetch(`/payments/${bookingId}/status`),
 };
 
 // ─── USER ─────────────────────────────────────────────────────────────────────

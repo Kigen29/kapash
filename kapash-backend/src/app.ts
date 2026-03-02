@@ -25,8 +25,8 @@ const app: Application = express();
 // ── Security ──────────────────────────────────────────────────────────────────
 app.use(helmet());
 app.use(cors({
-  origin: env.FRONTEND_URL,
-  credentials: true,
+  origin: env.NODE_ENV === 'development' ? '*' : env.FRONTEND_URL,
+  credentials: env.NODE_ENV !== 'development',
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
