@@ -60,7 +60,7 @@ export async function initiatePayment(req: AuthRequest, res: Response) {
   const description = `Kapash - ${booking.pitchName} ${booking.date.toISOString().split('T')[0]} ${booking.startTime}`;
   const stkResult = await initiateMpesaStkPush({
     phone,
-    amount: Math.ceil(booking.totalAmount), // M-Pesa requires integer
+    amount: Math.ceil(booking.totalAmount),
     bookingId,
     description,
   });
@@ -129,7 +129,6 @@ export async function mpesaCallback(req: Request, res: Response) {
     if (ResultCode === 0) {
       // ── Payment Successful ────────────────────────────────────────────────
 
-      // Extract metadata
       const items = CallbackMetadata?.Item || [];
       const getMeta = (name: string) => items.find((i: any) => i.Name === name)?.Value;
 
@@ -137,9 +136,7 @@ export async function mpesaCallback(req: Request, res: Response) {
       const transactionDate = getMeta('TransactionDate');
       const amount = getMeta('Amount');
 
-      // Update everything in a transaction
       await prisma.$transaction(async (tx) => {
-        // Update payment
         await tx.payment.update({
           where: { id: payment.id },
           data: {
@@ -151,19 +148,16 @@ export async function mpesaCallback(req: Request, res: Response) {
           },
         });
 
-        // Confirm booking
         await tx.booking.update({
           where: { id: payment.bookingId },
           data: { status: 'CONFIRMED' },
         });
 
-        // Mark slot as BOOKED (permanent)
         await tx.timeSlot.update({
           where: { id: payment.booking.slotId },
           data: { status: 'BOOKED', heldBy: null, heldUntil: null },
         });
 
-        // Schedule owner payout (in 2 days)
         const payoutDate = new Date();
         payoutDate.setDate(payoutDate.getDate() + 2);
 
@@ -178,7 +172,6 @@ export async function mpesaCallback(req: Request, res: Response) {
           },
         });
 
-        // Create notification for user
         await tx.notification.create({
           data: {
             userId: payment.booking.userId,
@@ -189,7 +182,6 @@ export async function mpesaCallback(req: Request, res: Response) {
           },
         });
 
-        // Create notification for pitch owner
         await tx.notification.create({
           data: {
             userId: payment.booking.pitch.ownerId,
@@ -201,23 +193,19 @@ export async function mpesaCallback(req: Request, res: Response) {
         });
       });
 
-      // Invalidate availability cache
       const dateStr = payment.booking.date.toISOString().split('T')[0];
       await redis.del(REDIS_KEYS.pitchAvailability(payment.booking.pitchId, dateStr));
 
-      // Send confirmation SMS to customer
       await sendSMS(
         payment.booking.user.phone,
         `✅ Booking Confirmed! ${payment.booking.pitchName} on ${dateStr} at ${payment.booking.startTime}. Ref: ${payment.booking.ticketId.slice(0, 8).toUpperCase()}. M-Pesa Ref: ${mpesaReceiptNumber}`
       );
 
-      // Send SMS to pitch owner
       await sendSMS(
         payment.booking.pitch.owner.phone,
         `📅 New Booking! ${payment.booking.user.name} has booked your pitch on ${dateStr} at ${payment.booking.startTime}. KES ${payment.booking.ownerAmount} will be paid out within 48hrs.`
       );
 
-      // Push notifications
       if (payment.booking.user.fcmToken) {
         await sendPushNotification(payment.booking.user.fcmToken, {
           title: '🎉 Booking Confirmed!',
@@ -237,7 +225,6 @@ export async function mpesaCallback(req: Request, res: Response) {
           data: { status: 'FAILED', resultCode: String(ResultCode), resultDesc: ResultDesc },
         });
 
-        // Release the slot hold
         await tx.timeSlot.update({
           where: { id: payment.booking.slotId },
           data: { status: 'AVAILABLE', heldBy: null, heldUntil: null },
@@ -249,7 +236,6 @@ export async function mpesaCallback(req: Request, res: Response) {
         });
       });
 
-      // Notify user of failure
       await sendSMS(
         payment.booking.user.phone,
         `❌ Payment failed for ${payment.booking.pitchName}. ${ResultDesc}. Please try again on Kapash.`
@@ -266,7 +252,7 @@ export async function mpesaCallback(req: Request, res: Response) {
 // ── Check Payment Status (polling from app) ───────────────────────────────────
 
 export async function checkPaymentStatus(req: AuthRequest, res: Response) {
-  const { bookingId } = req.params;
+  const bookingId = String(req.params.bookingId);
 
   const payment = await prisma.payment.findUnique({
     where: { bookingId },

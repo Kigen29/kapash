@@ -5,7 +5,7 @@ import { uploadMultipleImages, deleteImage } from '../services/upload.service';
 import { AppError } from '../utils/errors';
 
 export async function uploadPitchImages(req: AuthRequest, res: Response) {
-  const { id: pitchId } = req.params;
+  const pitchId = String(req.params.id);
   const files = req.files as Express.Multer.File[];
 
   if (!files || files.length === 0) throw new AppError('No images provided.', 400);
@@ -40,7 +40,8 @@ export async function uploadPitchImages(req: AuthRequest, res: Response) {
 }
 
 export async function deletePitchImage(req: AuthRequest, res: Response) {
-  const { id: pitchId, imageId } = req.params;
+  const pitchId = String(req.params.id);
+  const imageId = String(req.params.imageId);
 
   const image = await prisma.pitchImage.findUnique({
     where: { id: imageId },

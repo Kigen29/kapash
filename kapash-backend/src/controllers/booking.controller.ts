@@ -153,7 +153,14 @@ export async function getMyBookings(req: AuthRequest, res: Response) {
   const { status, page = '1', limit = '20' } = req.query as any;
 
   const where: any = { userId };
-  if (status) where.status = status;
+  if (status) {
+    const statuses = (status as string).split(',').map((s: string) => s.trim());
+    if (statuses.length === 1) {
+      where.status = statuses[0] as any;
+    } else {
+      where.status = { in: statuses } as any;
+    }
+  }
 
   const [bookings, total] = await Promise.all([
     prisma.booking.findMany({
@@ -183,7 +190,7 @@ export async function getMyBookings(req: AuthRequest, res: Response) {
 // ── Get Single Booking ────────────────────────────────────────────────────────
 
 export async function getBooking(req: AuthRequest, res: Response) {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const userId = req.user!.id;
 
   const booking = await prisma.booking.findUnique({
@@ -211,13 +218,19 @@ export async function getBooking(req: AuthRequest, res: Response) {
 // ── Cancel Booking ────────────────────────────────────────────────────────────
 
 export async function cancelBooking(req: AuthRequest, res: Response) {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const { reason } = cancelBookingSchema.parse(req.body);
   const userId = req.user!.id;
 
   const booking = await prisma.booking.findUnique({
     where: { id },
-    include: { payment: true, slot: true },
+    include: {
+      payment: true,
+      slot: true,
+      pitch: {
+        include: { owner: { select: { phone: true } } },
+      },
+    },
   });
 
   if (!booking) throw new AppError('Booking not found.', 404);

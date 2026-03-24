@@ -93,14 +93,11 @@ export default function ProfileScreen({ navigation }: any) {
             <ActivityIndicator color="#22C55E" />
           ) : (
             <>
-              <StatBox label="Bookings" value={stats?.totalBookings || 0} />
+              <StatBox label="Bookings"  value={stats?.totalBookings    ?? 0} />
               <View style={s.statDivider} />
-              <StatBox
-                label="Completed"
-                value={stats?.completedBookings || 0}
-              />
+              <StatBox label="Completed" value={stats?.completedBookings ?? 0} />
               <View style={s.statDivider} />
-              <StatBox label="Referrals" value={stats?.referralCount || 0} />
+              <StatBox label="Referrals" value={stats?.referralCount ?? 0} />
             </>
           )}
         </View>

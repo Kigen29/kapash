@@ -41,8 +41,12 @@ export default function HomeScreen({ navigation }: any) {
     setRefreshing(false);
   }, [featured.refetch, pitches.refetch]);
 
-  const pitchList: any[] = pitches.data?.pitches || [];
-  const featuredList: any[] = featured.data || [];
+const pitchList: any[] = Array.isArray(pitches.data?.pitches)
+  ? pitches.data.pitches
+  : [];
+const featuredList: any[] = Array.isArray(featured.data)
+  ? featured.data
+  : [];
 
   return (
     <View style={s.container}>

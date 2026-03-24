@@ -1,9 +1,6 @@
 /**
  * RootNavigator - Auth-aware routing
  * Place at: src/navigation/RootNavigator.tsx
- *
- * This navigator watches the AuthContext and automatically switches
- * between the Auth stack and the main app stack based on login state.
  */
 
 import React from 'react';
@@ -30,12 +27,18 @@ import FiltersScreen from '../screens/user/FiltersScreen';
 import HelpSupportScreen from '../screens/user/HelpSupportScreen';
 import ReferralScreen from '../screens/user/ReferralScreen';
 
+// Previously missing screens
+import MyBookingsScreen from '../screens/user/MyBookingsScreen';
+import NotificationsScreen from '../screens/user/NotificationScreen';
+import EditProfileScreen from '../screens/user/EditProfileScreen';
+import ReviewsScreen from '../screens/user/ReferralScreen';
+import VerifyPhoneScreen from '../screens/auth/VerifyPhoneScreen';
+
 const Stack = createNativeStackNavigator();
 
 export default function RootNavigator() {
   const { isAuthenticated, isLoading, user } = useAuth();
 
-  // Show splash/loading while checking stored session
   if (isLoading) {
     return (
       <View style={{ flex: 1, backgroundColor: '#0F1923', justifyContent: 'center', alignItems: 'center' }}>
@@ -52,17 +55,18 @@ export default function RootNavigator() {
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="SignUp" component={SignUpScreen} />
+            <Stack.Screen name="VerifyPhone" component={VerifyPhoneScreen} />
           </>
         ) : (
           // ─── APP STACK ────────────────────────────────────────────────────
           <>
-            {/* Main tab navigator — switches between Player and Owner tabs based on role */}
+            {/* Main tab navigator */}
             <Stack.Screen
               name="Main"
               component={user?.role === 'OWNER' ? OwnerTabNavigator : UserTabNavigator}
             />
 
-            {/* Modal screens accessible from any tab */}
+            {/* Booking flow */}
             <Stack.Screen
               name="PitchDetails"
               component={PitchDetailsScreen}
@@ -78,9 +82,24 @@ export default function RootNavigator() {
               component={BookingConfirmationScreen}
               options={{ animation: 'fade', gestureEnabled: false }}
             />
-            <Stack.Screen name="Filters" component={FiltersScreen} options={{ animation: 'slide_from_bottom' }} />
-            <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
-            <Stack.Screen name="Referral" component={ReferralScreen} />
+            <Stack.Screen
+              name="MyBookings"
+              component={MyBookingsScreen}
+            />
+
+            {/* Filters */}
+            <Stack.Screen
+              name="Filters"
+              component={FiltersScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
+
+            {/* Profile & account */}
+            <Stack.Screen name="EditProfile"    component={EditProfileScreen} />
+            <Stack.Screen name="Reviews"        component={ReviewsScreen} />
+            <Stack.Screen name="Notifications"  component={NotificationsScreen} />
+            <Stack.Screen name="HelpSupport"    component={HelpSupportScreen} />
+            <Stack.Screen name="Referral"       component={ReferralScreen} />
           </>
         )}
       </Stack.Navigator>

@@ -80,8 +80,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (token && userStr) {
           // Verify token is still valid
           const { data } = await AUTH.me();
-          const user = data.data?.user || data.user || JSON.parse(userStr);
-          dispatch({ type: 'LOGIN_SUCCESS', payload: user });
+          const user = data.data || data.user || JSON.parse(userStr);
+dispatch({ type: 'LOGIN_SUCCESS', payload: user });
         } else {
           dispatch({ type: 'LOGOUT' });
         }

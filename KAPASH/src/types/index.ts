@@ -83,3 +83,15 @@ export type OwnerTabParamList = {
   Analytics: undefined;
   Account: undefined;
 };
+
+export interface DashboardData {
+  monthlyRevenue:    number;
+  todayRevenue:      number;
+  monthlyBookings:   number;
+  todayBookings:     number;
+  pendingBookings:   number;
+  occupancyRate:     number;
+  avgRating:         number;
+  pendingPayout:     number;
+  todayBookingsList: any[];
+}

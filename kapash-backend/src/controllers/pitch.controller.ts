@@ -16,7 +16,7 @@ const searchSchema = z.object({
   size: z.enum(['FIVE_A_SIDE', 'SEVEN_A_SIDE', 'ELEVEN_A_SIDE']).optional(),
   minPrice: z.coerce.number().optional(),
   maxPrice: z.coerce.number().optional(),
-  amenities: z.string().optional(), // comma-separated: "Floodlights,Parking"
+  amenities: z.string().optional(),
   page: z.coerce.number().default(1),
   limit: z.coerce.number().max(50).default(20),
 });
@@ -48,7 +48,6 @@ export async function searchPitches(req: Request, res: Response) {
   const params = searchSchema.parse(req.query);
   const skip = (params.page - 1) * params.limit;
 
-  // Build where clause
   const where: any = {
     status: 'ACTIVE',
     isVerified: true,
@@ -87,7 +86,6 @@ export async function searchPitches(req: Request, res: Response) {
     prisma.pitch.count({ where }),
   ]);
 
-  // If lat/lng provided, calculate and sort by distance
   let result = pitches;
   if (params.lat && params.lng) {
     result = pitches
@@ -115,7 +113,7 @@ export async function searchPitches(req: Request, res: Response) {
 // ── Get Single Pitch ──────────────────────────────────────────────────────────
 
 export async function getPitch(req: Request, res: Response) {
-  const { id } = req.params;
+  const id = String(req.params.id);
 
   const pitch = await prisma.pitch.findUnique({
     where: { id },
@@ -147,8 +145,8 @@ export async function getPitch(req: Request, res: Response) {
 // ── Get Pitch Availability ────────────────────────────────────────────────────
 
 export async function getPitchAvailability(req: Request, res: Response) {
-  const { id } = req.params;
-  const { date } = req.query as { date: string };
+  const id = String(req.params.id);
+  const date = String(req.query.date || '');
 
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new AppError('Valid date (YYYY-MM-DD) is required.', 400);
@@ -167,7 +165,6 @@ export async function getPitchAvailability(req: Request, res: Response) {
   });
   if (!pitch) throw new AppError('Pitch not found.', 404);
 
-  // Get existing slots for this date
   const dateObj = new Date(date);
   const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
   const hours = (pitch.operatingHours as any)[dayName];
@@ -176,10 +173,8 @@ export async function getPitchAvailability(req: Request, res: Response) {
     return res.json({ success: true, data: { date, slots: [], message: 'Pitch closed on this day' } });
   }
 
-  // Generate hourly slots between open and close
   const slots = generateHourlySlots(hours.open, hours.close);
 
-  // Get booked/held slots from DB
   const existingSlots = await prisma.timeSlot.findMany({
     where: {
       pitchId: id,
@@ -199,7 +194,6 @@ export async function getPitchAvailability(req: Request, res: Response) {
     price: pitch.pricePerHour,
   }));
 
-  // Cache for 2 minutes
   await redis.setex(cacheKey, REDIS_TTL.pitchAvailability, JSON.stringify({ date, slots: result }));
 
   res.json({ success: true, data: { date, slots: result } });
@@ -232,7 +226,7 @@ export async function createPitch(req: AuthRequest, res: Response) {
 // ── Update Pitch (Owner) ──────────────────────────────────────────────────────
 
 export async function updatePitch(req: AuthRequest, res: Response) {
-  const { id } = req.params;
+  const id = String(req.params.id);
 
   const pitch = await prisma.pitch.findUnique({ where: { id } });
   if (!pitch) throw new AppError('Pitch not found.', 404);
