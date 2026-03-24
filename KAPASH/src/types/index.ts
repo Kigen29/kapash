@@ -1,19 +1,32 @@
+// ── User & Auth ──────────────────────────────────────────────────────────────
+
 export interface Pitch {
   id: string;
   name: string;
-  location: string;
+  address: string;
+  city?: string;
+  location?: string;
   pricePerHour: number;
-  rating: number;
-  reviewCount: number;
+  avgRating?: number;
+  rating?: number;
+  reviewCount?: number;
   distance?: string;
   type: string;
   size: string;
-  image: string;
-  images: string[];
+  images: PitchImage[];
   amenities: Amenity[];
   isVerified: boolean;
-  badge?: 'PREMIUM' | 'POPULAR' | 'NEW';
-  slots: TimeSlot[];
+  status?: string;
+  description?: string;
+  operatingHours?: Record<string, { open: string; close: string }>;
+  _count?: { bookings?: number; reviews?: number };
+}
+
+export interface PitchImage {
+  id: string;
+  url: string;
+  isPrimary: boolean;
+  order: number;
 }
 
 export interface Amenity {
@@ -23,51 +36,70 @@ export interface Amenity {
 }
 
 export interface TimeSlot {
-  id: string;
-  time: string;
-  status: 'available' | 'booked' | 'blocked';
+  startTime: string;
+  endTime: string;
+  status: 'AVAILABLE' | 'UNAVAILABLE' | 'BOOKED' | 'HELD';
+  price?: number;
 }
 
 export interface Booking {
   id: string;
+  userId: string;
   pitchId: string;
   pitchName: string;
-  pitchLocation: string;
-  pitchImage: string;
+  pitchAddress: string;
   date: string;
   startTime: string;
   endTime: string;
-  duration: number;
-  price: number;
-  status: 'confirmed' | 'pending' | 'cancelled' | 'completed';
+  durationMins: number;
+  totalAmount: number;
+  ownerAmount: number;
+  status: 'PENDING_PAYMENT' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW';
   ticketId: string;
+  pitch?: Pitch;
+  payment?: { status: string; method: string };
 }
 
 export interface User {
   id: string;
   name: string;
-  email: string;
-  phone: string;
+  phone?: string;
+  email?: string;
+  // ✅ FIXED: Match DB enum values
+  role: 'PLAYER' | 'OWNER' | 'ADMIN';
   avatar?: string;
-  totalBookings: number;
-  totalSpent: number;
-  rating: number;
+  isVerified: boolean;
+  phoneVerified: boolean;
+  referralCode?: string;
+  walletBalance?: number;
 }
 
-// ── Navigation Types ─────────────────────────────────────────────────────────
+// ── Navigation ────────────────────────────────────────────────────────────────
 
 export type RootStackParamList = {
-  Onboarding: undefined;
-  SignUp: undefined;
   Login: undefined;
-  UserTabs: undefined;
-  OwnerTabs: undefined;
+  SignUp: undefined;
+  VerifyPhone: { phone: string; isLinking?: boolean };
+  Main: undefined;
   PitchDetails: { pitchId: string };
-  Checkout: { pitchId: string; date: string; slot: string; price: number };
+  Checkout: {
+    pitchId: string;
+    pitchName: string;
+    pitchAddress: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    price: number;
+    pitchImage?: string;
+  };
   BookingConfirmation: { bookingId: string };
+  MyBookings: undefined;
   Filters: undefined;
   HelpSupport: undefined;
   Referral: undefined;
+  Notifications: undefined;
+  EditProfile: undefined;
+  Reviews: undefined;
 };
 
 export type UserTabParamList = {

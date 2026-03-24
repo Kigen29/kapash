@@ -1,8 +1,3 @@
-/**
- * RootNavigator - Auth-aware routing
- * Place at: src/navigation/RootNavigator.tsx
- */
-
 import React from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
@@ -12,32 +7,28 @@ import { useAuth } from '../context/AuthContext';
 // Auth screens
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
+import VerifyPhoneScreen from '../screens/auth/VerifyPhoneScreen';
 
-// User tab navigator
+// Tab navigators
 import UserTabNavigator from './UserTabNavigator';
-
-// Owner tab navigator
 import OwnerTabNavigator from './OwnerTabNavigator';
 
-// Shared/modal screens
+// User screens
 import PitchDetailsScreen from '../screens/user/PitchDetailsScreen';
 import CheckoutScreen from '../screens/user/CheckoutScreen';
 import BookingConfirmationScreen from '../screens/user/BookingConfirmationScreen';
 import FiltersScreen from '../screens/user/FiltersScreen';
 import HelpSupportScreen from '../screens/user/HelpSupportScreen';
 import ReferralScreen from '../screens/user/ReferralScreen';
-
-// Previously missing screens
 import MyBookingsScreen from '../screens/user/MyBookingsScreen';
 import NotificationsScreen from '../screens/user/NotificationScreen';
 import EditProfileScreen from '../screens/user/EditProfileScreen';
-import ReviewsScreen from '../screens/user/ReferralScreen';
-import VerifyPhoneScreen from '../screens/auth/VerifyPhoneScreen';
+import ReviewsScreen from '../screens/user/ReviewsScreen'; // ✅ FIXED: was incorrectly pointing to ReferralScreen
 
 const Stack = createNativeStackNavigator();
 
 export default function RootNavigator() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, requiresPhoneVerification } = useAuth();
 
   if (isLoading) {
     return (
@@ -51,16 +42,21 @@ export default function RootNavigator() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
         {!isAuthenticated ? (
-          // ─── AUTH STACK ───────────────────────────────────────────────────
+          // ─── AUTH STACK ─────────────────────────────────────────────────
           <>
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="SignUp" component={SignUpScreen} />
+            <Stack.Screen name="Login"       component={LoginScreen} />
+            <Stack.Screen name="SignUp"      component={SignUpScreen} />
+            <Stack.Screen name="VerifyPhone" component={VerifyPhoneScreen} />
+          </>
+        ) : requiresPhoneVerification ? (
+          // ─── PHONE VERIFICATION REQUIRED (social auth new users) ────────
+          <>
             <Stack.Screen name="VerifyPhone" component={VerifyPhoneScreen} />
           </>
         ) : (
-          // ─── APP STACK ────────────────────────────────────────────────────
+          // ─── APP STACK ───────────────────────────────────────────────────
           <>
-            {/* Main tab navigator */}
+            {/* Main tabs — ✅ FIXED: 'OWNER' matches updated DB enum */}
             <Stack.Screen
               name="Main"
               component={user?.role === 'OWNER' ? OwnerTabNavigator : UserTabNavigator}
@@ -82,10 +78,7 @@ export default function RootNavigator() {
               component={BookingConfirmationScreen}
               options={{ animation: 'fade', gestureEnabled: false }}
             />
-            <Stack.Screen
-              name="MyBookings"
-              component={MyBookingsScreen}
-            />
+            <Stack.Screen name="MyBookings" component={MyBookingsScreen} />
 
             {/* Filters */}
             <Stack.Screen
@@ -95,11 +88,14 @@ export default function RootNavigator() {
             />
 
             {/* Profile & account */}
-            <Stack.Screen name="EditProfile"    component={EditProfileScreen} />
-            <Stack.Screen name="Reviews"        component={ReviewsScreen} />
-            <Stack.Screen name="Notifications"  component={NotificationsScreen} />
-            <Stack.Screen name="HelpSupport"    component={HelpSupportScreen} />
-            <Stack.Screen name="Referral"       component={ReferralScreen} />
+            <Stack.Screen name="EditProfile"   component={EditProfileScreen} />
+            <Stack.Screen name="Reviews"       component={ReviewsScreen} />  {/* ✅ FIXED */}
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            <Stack.Screen name="HelpSupport"   component={HelpSupportScreen} />
+            <Stack.Screen name="Referral"      component={ReferralScreen} />
+
+            {/* Phone linking for social auth users */}
+            <Stack.Screen name="VerifyPhone"   component={VerifyPhoneScreen} />
           </>
         )}
       </Stack.Navigator>
