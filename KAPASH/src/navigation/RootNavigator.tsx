@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { createRef } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
+
+export const navigationRef = createRef<NavigationContainerRef<any>>();
 
 // Auth screens
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -24,6 +26,7 @@ import MyBookingsScreen from '../screens/user/MyBookingsScreen';
 import NotificationsScreen from '../screens/user/NotificationScreen';
 import EditProfileScreen from '../screens/user/EditProfileScreen';
 import ReviewsScreen from '../screens/user/ReviewsScreen'; // ✅ FIXED: was incorrectly pointing to ReferralScreen
+import AddPitchScreen from '../screens/owner/AddPitchScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -39,7 +42,7 @@ export default function RootNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
         {!isAuthenticated ? (
           // ─── AUTH STACK ─────────────────────────────────────────────────
@@ -93,6 +96,13 @@ export default function RootNavigator() {
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
             <Stack.Screen name="HelpSupport"   component={HelpSupportScreen} />
             <Stack.Screen name="Referral"      component={ReferralScreen} />
+
+            {/* Owner tools */}
+            <Stack.Screen
+              name="AddPitch"
+              component={AddPitchScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
 
             {/* Phone linking for social auth users */}
             <Stack.Screen name="VerifyPhone"   component={VerifyPhoneScreen} />

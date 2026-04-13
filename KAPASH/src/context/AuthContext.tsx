@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useReducer, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AUTH, TokenStorage, STORAGE_KEYS } from '../services/api';
+import { AUTH, TokenStorage, STORAGE_KEYS, USER } from '../services/api';
 import { User } from '../types';
+import { registerForPushNotifications } from '../services/notifications';
 
 interface AuthState {
   user: User | null;
@@ -123,6 +124,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await TokenStorage.setTokens(accessToken, refreshToken);
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
       dispatch({ type: 'LOGIN_SUCCESS', payload: user });
+      // Register push token in background — failure is non-fatal
+      registerForPushNotifications().then(token => {
+        if (token) USER.updatePushToken(token).catch(() => {});
+      });
     },
     []
   );
@@ -140,6 +145,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'REQUIRE_PHONE_VERIFICATION', payload: user });
       } else {
         dispatch({ type: 'LOGIN_SUCCESS', payload: user });
+        // Register push token in background — failure is non-fatal
+        registerForPushNotifications().then(token => {
+          if (token) USER.updatePushToken(token).catch(() => {});
+        });
       }
     },
     []

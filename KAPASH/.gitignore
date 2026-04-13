@@ -30,7 +30,13 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
+.env.local
 .env*.local
+
+# Android signing credentials (use EAS Secrets instead)
+credentials.json
+credentials/
 
 # typescript
 *.tsbuildinfo

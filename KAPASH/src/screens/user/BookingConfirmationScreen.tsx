@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import QRCode from 'react-native-qrcode-svg';
 import { useBooking } from '../../hooks/useData';
 
 export default function BookingConfirmationScreen({ route, navigation }: any) {
@@ -92,10 +93,15 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
             <View style={s.ticketBottom}>
               <Text style={s.qrLabel}>Show this at the pitch</Text>
-              <View style={s.qrPlaceholder}>
-                <Text style={s.qrEmoji}>📱</Text>
-                <Text style={s.qrCode}>{ticketRef}</Text>
+              <View style={s.qrWrapper}>
+                <QRCode
+                  value={b.ticketId || b.id || ticketRef}
+                  size={120}
+                  color="#0F1923"
+                  backgroundColor="#FFFFFF"
+                />
               </View>
+              <Text style={s.qrRefText}>{ticketRef}</Text>
               <Text style={s.validTxt}>Valid for entry</Text>
             </View>
           </View>
@@ -160,9 +166,8 @@ const s = StyleSheet.create({
   perf:           { flex: 1, height: 16, backgroundColor: '#1A2535', borderRadius: 8, marginHorizontal: 2 },
   ticketBottom:   { backgroundColor: '#1A2535', padding: 20, alignItems: 'center' },
   qrLabel:        { color: '#9CA3AF', fontSize: 12, marginBottom: 12 },
-  qrPlaceholder:  { width: 100, height: 100, backgroundColor: '#0F1923', borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  qrEmoji:        { fontSize: 40 },
-  qrCode:         { color: '#22C55E', fontWeight: '800', fontSize: 13, marginTop: 4, letterSpacing: 2 },
+  qrWrapper:      { backgroundColor: '#FFFFFF', padding: 8, borderRadius: 12, marginBottom: 10 },
+  qrRefText:      { color: '#22C55E', fontWeight: '800', fontSize: 13, letterSpacing: 2, marginBottom: 6 },
   validTxt:       { color: '#22C55E', fontSize: 11, fontWeight: '600' },
   nextCard:       { backgroundColor: '#1A2535', borderRadius: 16, padding: 16, marginBottom: 20, gap: 10 },
   nextTitle:      { fontSize: 14, fontWeight: '700', color: '#fff', marginBottom: 4 },

@@ -1,50 +1,111 @@
-# Welcome to your Expo app 👋
+# KAPASH — Sports Pitch Booking Platform
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+KAPASH is a React Native / Expo mobile app for booking sports pitches in Kenya. Players can search pitches, book time slots, and pay via M-Pesa. Pitch owners can list venues, manage schedules, and track revenue.
 
-## Get started
+---
 
-1. Install dependencies
+## Prerequisites
 
-   ```bash
-   npm install
-   ```
+- Node.js 18+
+- Expo CLI — `npm install -g expo-cli`
+- EAS CLI — `npm install -g eas-cli`
+- Android Studio or Xcode (for emulators), or a physical device with Expo Go
 
-2. Start the app
+---
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Setup
 
 ```bash
-npm run reset-project
+# 1. Clone the repo
+git clone <repo-url>
+cd KAPASH
+
+# 2. Install dependencies
+npm install
+
+# 3. Configure environment
+cp .env.example .env
+# Edit .env and fill in the values (see table below)
+
+# 4. Start the dev server
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Scan the QR code with Expo Go (Android) or the Camera app (iOS), or press `a` / `i` to launch on an emulator.
 
-## Learn more
+---
 
-To learn more about developing your project with Expo, look at the following resources:
+## Environment Variables
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Copy `.env.example` to `.env` and fill in:
 
-## Join the community
+| Variable | Description |
+| --- | --- |
+| `EXPO_PUBLIC_API_URL` | Backend API base URL, e.g. `http://192.168.1.64:5000/api/v1` |
+| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | Google OAuth Web Client ID (from Google Cloud Console) |
+| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | Google OAuth iOS Client ID |
+| `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` | Google OAuth Android Client ID |
 
-Join our community of developers creating universal apps.
+All `EXPO_PUBLIC_*` variables are bundled at build time by Metro — no extra babel plugin needed.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+---
+
+## Backend
+
+KAPASH requires a separate Node.js/Express API. The frontend expects:
+
+- `POST /auth/send-otp` — send OTP to phone
+- `POST /auth/verify-otp` — verify OTP, returns `{ accessToken, refreshToken, user }`
+- `POST /auth/google` — Google OAuth
+- `GET /pitches` — list pitches (supports `?search=`, `?pitchType=`, `?featured=true`)
+- `GET /pitches/:id` — pitch detail
+- `GET /pitches/:id/availability?date=YYYY-MM-DD` — available time slots
+- `POST /bookings` — create booking
+- `GET /bookings` — list user bookings
+- `PATCH /bookings/:id/cancel` — cancel booking
+- `PATCH /users/me/push-token` — register push notification token
+- `POST /owner/payouts/request` — request payout
+
+---
+
+## Building
+
+```bash
+# Development build (physical device)
+eas build --profile development --platform android
+
+# Preview build (internal testing)
+eas build --profile preview --platform android
+
+# Production build
+eas build --profile production --platform all
+```
+
+---
+
+## Project Structure
+
+```text
+src/
+  context/        AuthContext — auth state + token storage
+  hooks/          useData — data fetching hooks (usePitches, useBooking, etc.)
+  navigation/     RootNavigator, UserTabNavigator, OwnerTabNavigator
+  screens/
+    auth/         LoginScreen, SignUpScreen, VerifyPhoneScreen
+    user/         HomeScreen, PitchDetailsScreen, CheckoutScreen,
+                  BookingConfirmationScreen, MyBookingsScreen, ...
+    owner/        OwnerDashboardScreen, AnalyticsScreen, ManageScheduleScreen,
+                  OwnerAccountScreen, AddPitchScreen
+  services/
+    api.ts        All API calls (AUTH, USER, PITCHES, BOOKINGS, OWNER, REVIEWS)
+    notifications.ts  Push notification registration + tap routing
+  types/          TypeScript interfaces (Pitch, Booking, User, etc.)
+```
+
+---
+
+## Notes
+
+- Push notifications require a physical device (Expo Push Token unavailable on simulators)
+- M-Pesa STK Push uses polling — `CheckoutScreen` polls `/bookings/:id` until payment confirms
+- Google / Apple OAuth credentials must be configured in `.env` before social login works

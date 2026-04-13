@@ -35,9 +35,9 @@ export default function LoginScreen({ navigation }: any) {
 
   // ── Google Auth ──────────────────────────────────────────────────────────
   const [_request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com',
-    iosClientId: 'YOUR_GOOGLE_IOS_CLIENT_ID.apps.googleusercontent.com',
-    androidClientId: 'YOUR_GOOGLE_ANDROID_CLIENT_ID.apps.googleusercontent.com',
+    clientId:       process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    iosClientId:    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
   });
 
   React.useEffect(() => {

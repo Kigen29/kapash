@@ -66,7 +66,7 @@ export default function SignUpScreen({ navigation }: any) {
     setLoading(true);
     try {
       // verifyOtpWithName passes name in body so backend can create the user
-      const { data } = await AUTH.verifyOtpWithName(formattedPhone(), otp, name.trim());
+      const { data } = await AUTH.verifyOtp(formattedPhone(), otp, name.trim());
       await handleLoginSuccess(
         data.data.user,
         data.data.accessToken,

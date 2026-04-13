@@ -4,7 +4,7 @@
  */
 
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -25,13 +25,22 @@ const PITCH_TYPES = ['All', 'Football', 'Basketball', 'Tennis', 'Futsal', 'Rugby
 
 export default function HomeScreen({ navigation }: any) {
   const { user } = useAuth();
-  const [search, setSearch] = useState('');
-  const [activeType, setActiveType] = useState('All');
-  const [refreshing, setRefreshing] = useState(false);
+  const [inputValue, setInputValue]       = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [activeType, setActiveType]       = useState('All');
+  const [refreshing, setRefreshing]       = useState(false);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounce: only fire API call 500ms after user stops typing
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => setDebouncedSearch(inputValue), 500);
+    return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); };
+  }, [inputValue]);
 
   const featured = useFeaturedPitches();
   const pitches = usePitches({
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     pitchType: activeType === 'All' ? undefined : activeType.toUpperCase(),
   });
 
@@ -76,12 +85,12 @@ const featuredList: any[] = Array.isArray(featured.data)
               style={s.searchInput}
               placeholder="Search pitches..."
               placeholderTextColor="#6B7280"
-              value={search}
-              onChangeText={setSearch}
+              value={inputValue}
+              onChangeText={setInputValue}
               returnKeyType="search"
             />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch('')}>
+            {inputValue.length > 0 && (
+              <TouchableOpacity onPress={() => { setInputValue(''); setDebouncedSearch(''); }}>
                 <Text style={s.clearText}>✕</Text>
               </TouchableOpacity>
             )}
@@ -110,11 +119,11 @@ const featuredList: any[] = Array.isArray(featured.data)
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#22C55E" />}
       >
         {/* Featured */}
-        {!search && featuredList.length > 0 && (
+        {!inputValue && featuredList.length > 0 && (
           <View style={s.section}>
             <View style={s.sectionHeader}>
               <Text style={s.sectionTitle}>⚡ Featured Pitches</Text>
-              <TouchableOpacity><Text style={s.seeAll}>See all</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.navigate('Search')}><Text style={s.seeAll}>See all</Text></TouchableOpacity>
             </View>
             <FlatList
               horizontal
@@ -131,7 +140,7 @@ const featuredList: any[] = Array.isArray(featured.data)
         <View style={s.section}>
           <View style={s.sectionHeader}>
             <Text style={s.sectionTitle}>
-              {search ? `Results for "${search}"` : '📍 Pitches Near You'}
+              {debouncedSearch ? `Results for "${debouncedSearch}"` : '📍 Pitches Near You'}
             </Text>
           </View>
 
@@ -140,7 +149,7 @@ const featuredList: any[] = Array.isArray(featured.data)
           ) : pitches.error ? (
             <ErrorState message={pitches.error} onRetry={pitches.refetch} />
           ) : pitchList.length === 0 ? (
-            <EmptyState search={search} />
+            <EmptyState search={debouncedSearch} />
           ) : (
             pitchList.map(pitch => (
               <PitchCard

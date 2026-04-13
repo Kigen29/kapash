@@ -1,8 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const DEV_IP = '192.168.1.64';
-const PORT = 5000;
-const BASE_URL = `http://${DEV_IP}:${PORT}/api/v1`;
+// Set EXPO_PUBLIC_API_URL in your .env file (see .env.example)
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.1.64:5000/api/v1';
 
 export const STORAGE_KEYS = {
   ACCESS_TOKEN:  'kapash_access_token',
@@ -209,14 +208,16 @@ export const PAYMENTS = {
 
 // ─── USER ─────────────────────────────────────────────────────────────────────
 export const USER = {
-  getProfile:    ()                                              => apiFetch('/users/me'),
-  updateProfile: (body: { name?: string; email?: string })      =>
+  getProfile:      ()                                              => apiFetch('/users/me'),
+  updateProfile:   (body: { name?: string; email?: string })      =>
     apiFetch('/users/me', { method: 'PATCH', body }),
-  getStats:      ()                                              => apiFetch('/users/me/stats'),
-  getReferral:   ()                                              => apiFetch('/users/me/referral'),
-  getReviews:    ()                                              => apiFetch('/users/me/reviews'),
-  updateReview:  (id: string, body: { rating?: number; comment?: string }) =>
+  getStats:        ()                                              => apiFetch('/users/me/stats'),
+  getReferral:     ()                                              => apiFetch('/users/me/referral'),
+  getReviews:      ()                                              => apiFetch('/users/me/reviews'),
+  updateReview:    (id: string, body: { rating?: number; comment?: string }) =>
     apiFetch(`/reviews/${id}`, { method: 'PATCH', body }),
+  updatePushToken: (pushToken: string)                             =>
+    apiFetch('/users/me/push-token', { method: 'PATCH', body: { pushToken } }),
 };
 
 // ─── OWNER ────────────────────────────────────────────────────────────────────

@@ -1,11 +1,70 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  Share, Alert, ActivityIndicator,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, FONT_WEIGHT, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
+import { useReferral } from '../../hooks/useData';
 
 interface Props { navigation: any; }
 
 export default function ReferralScreen({ navigation }: Props) {
+  const { data, isLoading, error, refetch } = useReferral();
+
+  const referralCode   = data?.referralCode   ?? '—';
+  const referralCount  = data?.referralCount  ?? 0;
+  const totalEarned    = data?.totalEarned    ?? 0;
+  const earningsPer    = data?.earningsPerReferral ?? 500;
+
+  const shareMessage = `Join Kapash and book sports pitches easily! Use my referral code ${referralCode} to get started. Download the app now.`;
+
+  const handleShare = async () => {
+    try {
+      await Share.share({ message: shareMessage });
+    } catch {}
+  };
+
+  const handleCopy = async () => {
+    try {
+      await Share.share({ message: referralCode });
+    } catch {}
+  };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator color={COLORS.primary} size="large" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Text style={styles.backBtnText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Refer & Earn</Text>
+          <View style={styles.headerRight} />
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+          <Text style={{ fontSize: 40, marginBottom: 12 }}>😕</Text>
+          <Text style={{ color: COLORS.textSecondary, fontSize: FONTS.base, textAlign: 'center', marginBottom: 20 }}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: COLORS.primaryBg, paddingHorizontal: 24, paddingVertical: 10, borderRadius: RADIUS.full }}
+            onPress={refetch}
+          >
+            <Text style={{ color: COLORS.primary, fontWeight: FONT_WEIGHT.semiBold }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -28,7 +87,7 @@ export default function ReferralScreen({ navigation }: Props) {
             <Text style={styles.heroBadgeIcon}>🏆</Text>
             <Text style={styles.heroBadgeText}>Top Earner</Text>
           </View>
-          <Text style={styles.heroTitle}>Invite Friends,{'\n'}Earn KES 500</Text>
+          <Text style={styles.heroTitle}>Invite Friends,{'\n'}Earn KES {earningsPer.toLocaleString()}</Text>
           <Text style={styles.heroSubtitle}>
             For every friend who makes their first booking on Kapash.
           </Text>
@@ -37,15 +96,15 @@ export default function ReferralScreen({ navigation }: Props) {
         {/* Stats */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>KES 0</Text>
+            <Text style={styles.statValue}>KES {totalEarned.toLocaleString()}</Text>
             <Text style={styles.statLabel}>Total Earned</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>0</Text>
+            <Text style={styles.statValue}>{referralCount}</Text>
             <Text style={styles.statLabel}>Friends Referred</Text>
           </View>
-          <TouchableOpacity style={styles.shareRoundBtn}>
+          <TouchableOpacity style={styles.shareRoundBtn} onPress={handleShare}>
             <Text style={styles.shareRoundIcon}>↑</Text>
           </TouchableOpacity>
         </View>
@@ -54,11 +113,11 @@ export default function ReferralScreen({ navigation }: Props) {
         <View style={styles.codeCard}>
           <Text style={styles.codeLabel}>Your Referral Code</Text>
           <View style={styles.codeBox}>
-            <Text style={styles.codeText}>KAPASH-BK2024</Text>
+            <Text style={styles.codeText}>{referralCode}</Text>
           </View>
-          <TouchableOpacity style={styles.copyBtn}>
+          <TouchableOpacity style={styles.copyBtn} onPress={handleCopy}>
             <Text style={styles.copyBtnIcon}>📋</Text>
-            <Text style={styles.copyBtnText}>Copy</Text>
+            <Text style={styles.copyBtnText}>Share Code</Text>
           </TouchableOpacity>
           <Text style={styles.codeHint}>Share this code with friends</Text>
         </View>
@@ -73,7 +132,7 @@ export default function ReferralScreen({ navigation }: Props) {
               { icon: 'X', label: 'Twitter' },
               { icon: '↑', label: 'More' },
             ].map(item => (
-              <TouchableOpacity key={item.label} style={styles.shareOption}>
+              <TouchableOpacity key={item.label} style={styles.shareOption} onPress={handleShare}>
                 <View style={styles.shareIconBg}>
                   <Text style={styles.shareIcon}>{item.icon}</Text>
                 </View>
@@ -89,7 +148,7 @@ export default function ReferralScreen({ navigation }: Props) {
           {[
             { n: '1', title: 'Share Your Code', desc: 'Send your referral code to friends via WhatsApp, SMS or social media.' },
             { n: '2', title: 'Friend Signs Up', desc: 'Your friend creates a Kapash account using your code.' },
-            { n: '3', title: 'Earn KES 500', desc: 'You receive KES 500 when your friend completes their first booking.' },
+            { n: '3', title: `Earn KES ${earningsPer.toLocaleString()}`, desc: `You receive KES ${earningsPer.toLocaleString()} when your friend completes their first booking.` },
           ].map((step, i) => (
             <View key={i} style={styles.step}>
               <View style={[styles.stepNumber, i === 2 && styles.stepNumberActive]}>

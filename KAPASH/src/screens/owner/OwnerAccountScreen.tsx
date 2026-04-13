@@ -1,29 +1,93 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, FONT_WEIGHT, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { useOwnerDashboard, useOwnerPitches } from '../../hooks/useData';
+import { OWNER } from '../../services/api';
 
 const MENU = [
-  { icon: '🏟️', title: 'Manage Pitches', subtitle: 'Add / edit pitch details, photos', section: 'Venue' },
-  { icon: '💰', title: 'Pricing & Slots', subtitle: 'Set hourly rates per pitch', section: 'Venue' },
-  { icon: '💳', title: 'Withdrawal', subtitle: 'M-Pesa payout settings', section: 'Finance', badge: 'M-PESA' },
-  { icon: '📊', title: 'Full Analytics', subtitle: 'Detailed revenue & booking reports', section: 'Finance' },
-  { icon: '⚙️', title: 'Account Settings', subtitle: 'Profile, password, notifications', section: 'Settings' },
-  { icon: '❓', title: 'Help Center', subtitle: 'Get support from our team', section: 'Settings' },
+  { icon: '🏟️', title: 'Manage Pitches',    subtitle: 'Add / edit pitch details, photos',    section: 'Venue',    nav: null },
+  { icon: '💰', title: 'Pricing & Slots',   subtitle: 'Set hourly rates per pitch',           section: 'Venue',    nav: 'Schedule' },
+  { icon: '💳', title: 'Withdrawal',        subtitle: 'M-Pesa payout settings',              section: 'Finance',  nav: null, badge: 'M-PESA' },
+  { icon: '📊', title: 'Full Analytics',    subtitle: 'Detailed revenue & booking reports',  section: 'Finance',  nav: 'Analytics' },
+  { icon: '⚙️', title: 'Account Settings', subtitle: 'Profile, password, notifications',    section: 'Settings', nav: null },
+  { icon: '❓', title: 'Help Center',       subtitle: 'Get support from our team',           section: 'Settings', nav: null },
 ];
 
 interface Props { navigation: any; }
 
 export default function OwnerAccountScreen({ navigation }: Props) {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+  const { data: dashboard, isLoading: dashLoading } = useOwnerDashboard();
+  const { data: pitches, isLoading: pitchesLoading } = useOwnerPitches();
+
+  // Payout modal state
+  const [payoutModal, setPayoutModal]       = useState(false);
+  const [payoutAmount, setPayoutAmount]     = useState('');
+  const [payoutLoading, setPayoutLoading]   = useState(false);
+  const [payoutError, setPayoutError]       = useState('');
+
+  const pendingPayout = dashboard?.pendingPayout ?? 0;
+
+  const handleRequestPayout = async () => {
+    const amount = parseFloat(payoutAmount);
+    if (!payoutAmount || isNaN(amount) || amount <= 0) {
+      setPayoutError('Enter a valid amount.');
+      return;
+    }
+    if (amount > pendingPayout) {
+      setPayoutError(`Maximum available is KES ${pendingPayout.toLocaleString()}.`);
+      return;
+    }
+    setPayoutLoading(true);
+    setPayoutError('');
+    try {
+      await OWNER.requestPayout(amount);
+      setPayoutModal(false);
+      setPayoutAmount('');
+      Alert.alert('Payout requested!', `KES ${amount.toLocaleString()} will be sent to your M-Pesa within 24 hours.`);
+    } catch (err: any) {
+      setPayoutError(err.message || 'Payout request failed. Try again.');
+    } finally {
+      setPayoutLoading(false);
+    }
+  };
+
+  const pitchCount = Array.isArray(pitches) ? pitches.length : 0;
+  const revenue    = dashboard?.monthlyRevenue  ?? 0;
+  const bookings   = dashboard?.monthlyBookings ?? 0;
+  const rating     = dashboard?.avgRating       ?? 0;
+
+  const initials = (user?.name ?? '?')
+    .split(' ')
+    .map((w: string) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  const handleMenuPress = (item: typeof MENU[0]) => {
+    if (item.nav) {
+      navigation.navigate(item.nav);
+    } else if (item.title === 'Withdrawal') {
+      setPayoutAmount('');
+      setPayoutError('');
+      setPayoutModal(true);
+    } else if (item.title === 'Account Settings') {
+      Alert.alert('Account Settings', 'Coming soon.');
+    } else if (item.title === 'Help Center') {
+      Alert.alert('Help Center', 'Email us at support@kapash.app or visit kapash.app/help');
+    } else if (item.title === 'Manage Pitches') {
+      navigation.navigate('AddPitch');
+    }
+  };
+
   return (
     <View style={styles.container}>
-
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Account</Text>
-        <TouchableOpacity style={styles.settingsBtn}>
+        <TouchableOpacity style={styles.settingsBtn} onPress={() => handleMenuPress(MENU.find(m => m.title === 'Account Settings')!)}>
           <Text style={styles.settingsIcon}>⚙️</Text>
         </TouchableOpacity>
       </View>
@@ -39,36 +103,48 @@ export default function OwnerAccountScreen({ navigation }: Props) {
           <View style={styles.ownerCardContent}>
             <View style={styles.ownerAvatarContainer}>
               <LinearGradient colors={[COLORS.primary, COLORS.primaryDark]} style={styles.ownerAvatar}>
-                <Text style={styles.ownerAvatarText}>CT</Text>
+                <Text style={styles.ownerAvatarText}>{initials}</Text>
               </LinearGradient>
-              <View style={styles.verifiedBadge}>
-                <Text style={styles.verifiedIcon}>✓</Text>
-              </View>
+              {user?.isVerified && (
+                <View style={styles.verifiedBadge}>
+                  <Text style={styles.verifiedIcon}>✓</Text>
+                </View>
+              )}
             </View>
             <View style={styles.ownerInfo}>
-              <Text style={styles.ownerName}>Camp Toyoyo</Text>
+              <Text style={styles.ownerName}>{user?.name ?? '—'}</Text>
               <Text style={styles.ownerRole}>Pitch Owner</Text>
-              <View style={styles.ratingRow}>
-                <Text style={styles.starIcon}>⭐</Text>
-                <Text style={styles.ownerRating}>4.9 · 124 reviews</Text>
-              </View>
+              {rating > 0 && (
+                <View style={styles.ratingRow}>
+                  <Text style={styles.starIcon}>⭐</Text>
+                  <Text style={styles.ownerRating}>{rating.toFixed(1)} avg rating</Text>
+                </View>
+              )}
             </View>
           </View>
-          <View style={styles.ownerStats}>
-            {[
-              { label: 'Pitches', value: '3' },
-              { label: 'Revenue', value: 'KES 450k' },
-              { label: 'Bookings', value: '312' },
-            ].map((s, i) => (
-              <React.Fragment key={s.label}>
-                {i > 0 && <View style={styles.ownerStatDivider} />}
-                <View style={styles.ownerStat}>
-                  <Text style={styles.ownerStatValue}>{s.value}</Text>
-                  <Text style={styles.ownerStatLabel}>{s.label}</Text>
-                </View>
-              </React.Fragment>
-            ))}
-          </View>
+
+          {/* Stats */}
+          {(dashLoading || pitchesLoading) ? (
+            <View style={[styles.ownerStats, { justifyContent: 'center' }]}>
+              <ActivityIndicator color={COLORS.white} size="small" />
+            </View>
+          ) : (
+            <View style={styles.ownerStats}>
+              {[
+                { label: 'Pitches',  value: String(pitchCount) },
+                { label: 'Revenue',  value: revenue >= 1000 ? `KES ${(revenue / 1000).toFixed(0)}k` : `KES ${revenue}` },
+                { label: 'Bookings', value: String(bookings) },
+              ].map((s, i) => (
+                <React.Fragment key={s.label}>
+                  {i > 0 && <View style={styles.ownerStatDivider} />}
+                  <View style={styles.ownerStat}>
+                    <Text style={styles.ownerStatValue}>{s.value}</Text>
+                    <Text style={styles.ownerStatLabel}>{s.label}</Text>
+                  </View>
+                </React.Fragment>
+              ))}
+            </View>
+          )}
         </LinearGradient>
 
         {/* Menu Sections */}
@@ -80,11 +156,9 @@ export default function OwnerAccountScreen({ navigation }: Props) {
               <View style={styles.menuGroup}>
                 {items.map((item, index) => (
                   <TouchableOpacity
-                    key={item.icon}
+                    key={item.title}
                     style={[styles.menuItem, index < items.length - 1 && styles.menuItemBorder]}
-                    onPress={() => {
-                      if (item.title === 'Full Analytics') navigation.navigate('Analytics');
-                    }}
+                    onPress={() => handleMenuPress(item)}
                   >
                     <View style={styles.menuIconBg}>
                       <Text style={styles.menuIcon}>{item.icon}</Text>
@@ -112,8 +186,46 @@ export default function OwnerAccountScreen({ navigation }: Props) {
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>Kapash v1.0.0 · Pitch Owner</Text>
+        <Text style={styles.version}>Kapash v1.0.0 · {user?.phone ?? user?.email ?? 'Pitch Owner'}</Text>
       </ScrollView>
+
+      {/* Payout Modal */}
+      <Modal visible={payoutModal} transparent animationType="slide" onRequestClose={() => setPayoutModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Request Payout</Text>
+              <Text style={styles.modalSubtitle}>Available balance</Text>
+              <Text style={styles.modalBalance}>KES {pendingPayout.toLocaleString()}</Text>
+
+              <Text style={styles.modalLabel}>Amount to withdraw</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="e.g. 5000"
+                placeholderTextColor="#6B7280"
+                keyboardType="numeric"
+                value={payoutAmount}
+                onChangeText={t => { setPayoutAmount(t); setPayoutError(''); }}
+              />
+
+              {payoutError ? <Text style={styles.modalError}>{payoutError}</Text> : null}
+
+              <Text style={styles.modalHint}>Paid to your registered M-Pesa number within 24 hours.</Text>
+
+              <View style={styles.modalBtns}>
+                <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setPayoutModal(false)} disabled={payoutLoading}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleRequestPayout} disabled={payoutLoading}>
+                  {payoutLoading
+                    ? <ActivityIndicator color={COLORS.white} size="small" />
+                    : <Text style={styles.modalSubmitText}>Request</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -161,4 +273,20 @@ const styles = StyleSheet.create({
   logoutIcon: { fontSize: 18 },
   logoutText: { fontSize: FONTS.base, fontWeight: FONT_WEIGHT.semiBold, color: COLORS.error },
   version: { textAlign: 'center', fontSize: FONTS.xs, color: COLORS.textMuted },
+
+  // Payout modal
+  modalOverlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  modalCard:       { backgroundColor: COLORS.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  modalTitle:      { fontSize: FONTS['2xl'], fontWeight: FONT_WEIGHT.bold, color: COLORS.textPrimary, marginBottom: 4 },
+  modalSubtitle:   { fontSize: FONTS.sm, color: COLORS.textSecondary },
+  modalBalance:    { fontSize: FONTS['3xl'], fontWeight: FONT_WEIGHT.bold, color: COLORS.primary, marginBottom: SPACING.xl },
+  modalLabel:      { fontSize: FONTS.sm, fontWeight: FONT_WEIGHT.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.sm },
+  modalInput:      { backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.xl, borderWidth: 1.5, borderColor: COLORS.border, color: COLORS.textPrimary, fontSize: FONTS.xl, fontWeight: FONT_WEIGHT.bold, padding: SPACING.base, marginBottom: SPACING.sm },
+  modalError:      { color: COLORS.error, fontSize: FONTS.sm, marginBottom: SPACING.sm },
+  modalHint:       { fontSize: FONTS.xs, color: COLORS.textMuted, marginBottom: SPACING.xl },
+  modalBtns:       { flexDirection: 'row', gap: SPACING.md },
+  modalCancelBtn:  { flex: 1, height: 50, borderRadius: RADIUS.xl, borderWidth: 1.5, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  modalCancelText: { color: COLORS.textSecondary, fontWeight: FONT_WEIGHT.semiBold },
+  modalSubmitBtn:  { flex: 2, height: 50, borderRadius: RADIUS.xl, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  modalSubmitText: { color: COLORS.white, fontWeight: FONT_WEIGHT.bold, fontSize: FONTS.base },
 });
