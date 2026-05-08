@@ -1,37 +1,15 @@
 // Kapash – Design System Tokens
-// Derived from Figma: https://www.figma.com/design/uiwyjMjhSrZnzRvF66unwO/kapash
+// Both dark and light palettes; switched at runtime via ThemeContext.
 
-export const COLORS = {
-  // ── Brand ─────────────────────────────────────────
+const brand = {
   primary: '#22C55E',
   primaryDark: '#16A34A',
   primaryLight: '#86EFAC',
   primaryBg: '#F0FDF4',
   primaryMuted: 'rgba(34,197,94,0.12)',
-
-  // ── Surfaces ──────────────────────────────────────
-  background: '#F6F6F6',
-  surface: '#FFFFFF',
-  surfaceAlt: '#F9FAFB',
-
-  // ── Dark (hero / cards) ───────────────────────────
-  dark: '#0F1923',
-  darkCard: '#1A2633',
-  darkOverlay: 'rgba(15,25,35,0.72)',
-  darkOverlayLight: 'rgba(15,25,35,0.35)',
-
-  // ── Text ──────────────────────────────────────────
-  textPrimary: '#111827',
-  textSecondary: '#6B7280',
-  textMuted: '#9CA3AF',
-  textInverse: '#FFFFFF',
-  textGreen: '#16A34A',
-
-  // ── Borders ───────────────────────────────────────
-  border: '#E5E7EB',
-  borderLight: '#F3F4F6',
-
-  // ── Status ────────────────────────────────────────
+  white: '#FFFFFF',
+  black: '#000000',
+  transparent: 'transparent',
   success: '#22C55E',
   successBg: '#DCFCE7',
   pending: '#F59E0B',
@@ -40,13 +18,64 @@ export const COLORS = {
   errorBg: '#FEE2E2',
   info: '#3B82F6',
   infoBg: '#DBEAFE',
+};
 
-  // ── Utility ───────────────────────────────────────
-  white: '#FFFFFF',
-  black: '#000000',
-  transparent: 'transparent',
+export const darkPalette = {
+  ...brand,
+
+  background: '#0F1923',
+  surface: '#1A2535',
+  surfaceAlt: '#11192580',
+  surfaceElevated: '#1F2D3F',
+
+  // Surfaces traditionally rendered "dark" on light bg → stay dark
+  dark: '#0F1923',
+  darkCard: '#1A2535',
+  darkOverlay: 'rgba(15,25,35,0.72)',
+  darkOverlayLight: 'rgba(15,25,35,0.35)',
+
+  textPrimary: '#FFFFFF',
+  textSecondary: '#D1D5DB',
+  textMuted: '#9CA3AF',
+  textInverse: '#FFFFFF',
+  textGreen: '#86EFAC',
+
+  border: 'rgba(255,255,255,0.08)',
+  borderLight: 'rgba(255,255,255,0.04)',
+
+  overlay: 'rgba(0,0,0,0.55)',
+};
+
+export const lightPalette = {
+  ...brand,
+
+  background: '#F6F7F9',
+  surface: '#FFFFFF',
+  surfaceAlt: '#F9FAFB',
+  surfaceElevated: '#FFFFFF',
+
+  dark: '#0F1923',
+  darkCard: '#1A2535',
+  darkOverlay: 'rgba(15,25,35,0.72)',
+  darkOverlayLight: 'rgba(15,25,35,0.35)',
+
+  textPrimary: '#111827',
+  textSecondary: '#374151',
+  textMuted: '#6B7280',
+  textInverse: '#FFFFFF',
+  textGreen: '#16A34A',
+
+  border: '#E5E7EB',
+  borderLight: '#F3F4F6',
+
   overlay: 'rgba(0,0,0,0.45)',
 };
+
+export type ColorPalette = typeof darkPalette;
+
+// Backwards-compatible export — defaults to dark.
+// Screens that haven't migrated to useTheme() still get the dark palette.
+export const COLORS = darkPalette;
 
 export const FONTS = {
   regular: 'System',
@@ -54,7 +83,6 @@ export const FONTS = {
   semiBold: 'System',
   bold: 'System',
 
-  // Sizes
   xs: 11,
   sm: 13,
   base: 15,

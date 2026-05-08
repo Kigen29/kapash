@@ -1,51 +1,55 @@
-/**
- * MyBookingsScreen
- * Place at: src/screens/user/MyBookingsScreen.tsx
- */
-
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   ActivityIndicator, RefreshControl, Image, Alert, Modal,
-  TextInput, ScrollView,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useBookings } from '../../hooks/useData';
 import { BOOKINGS, REVIEWS } from '../../services/api';
+import { useTheme } from '../../context/ThemeContext';
+import { ColorPalette, FONTS, FONT_WEIGHT, RADIUS, SPACING } from '../../constants/theme';
 
 const TABS = [
-  { label: 'Upcoming', status: 'CONFIRMED,PENDING,PENDING_PAYMENT' },
-  { label: 'Past',     status: 'COMPLETED,CANCELLED' },
+  { label: 'Upcoming', status: 'CONFIRMED,PENDING_PAYMENT' },
+  { label: 'Past',     status: 'COMPLETED,CANCELLED,NO_SHOW' },
 ];
-
-const STATUS_COLORS: Record<string, string> = {
-  CONFIRMED:        '#22C55E',
-  PENDING:          '#F59E0B',
-  PENDING_PAYMENT:  '#F59E0B',
-  COMPLETED:        '#6B7280',
-  CANCELLED:        '#EF4444',
-};
 
 const STATUS_LABELS: Record<string, string> = {
   CONFIRMED:        'Confirmed',
-  PENDING:          'Pending',
   PENDING_PAYMENT:  'Awaiting Payment',
   COMPLETED:        'Completed',
   CANCELLED:        'Cancelled',
+  NO_SHOW:          'No-show',
 };
 
+function getStatusColors(status: string, c: ColorPalette) {
+  switch (status) {
+    case 'CONFIRMED':       return { bg: c.primaryMuted, fg: c.primary };
+    case 'PENDING_PAYMENT': return { bg: 'rgba(245,158,11,0.15)', fg: c.pending };
+    case 'COMPLETED':       return { bg: 'rgba(107,114,128,0.18)', fg: c.textMuted };
+    case 'CANCELLED':       return { bg: 'rgba(239,68,68,0.15)', fg: c.error };
+    case 'NO_SHOW':         return { bg: 'rgba(239,68,68,0.15)', fg: c.error };
+    default:                return { bg: c.surfaceAlt, fg: c.textMuted };
+  }
+}
+
 export default function MyBookingsScreen({ navigation }: any) {
-  const [activeTab, setActiveTab]   = useState(0);
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
+  const [activeTab, setActiveTab] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   // Review modal state
-  const [reviewModal, setReviewModal]       = useState(false);
-  const [reviewBooking, setReviewBooking]   = useState<any>(null);
-  const [reviewRating, setReviewRating]     = useState(5);
-  const [reviewComment, setReviewComment]   = useState('');
-  const [reviewLoading, setReviewLoading]   = useState(false);
-  const [reviewError, setReviewError]       = useState('');
+  const [reviewModal, setReviewModal] = useState(false);
+  const [reviewBooking, setReviewBooking] = useState<any>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState('');
 
   const { data: bookings, isLoading, error, refetch } = useBookings(TABS[activeTab].status);
   const list: any[] = Array.isArray(bookings) ? bookings : [];
@@ -68,7 +72,7 @@ export default function MyBookingsScreen({ navigation }: any) {
           onPress: async () => {
             setCancellingId(booking.id);
             try {
-              await BOOKINGS.cancel(booking.id);
+              await BOOKINGS.cancel(booking.id, 'User cancelled');
               await refetch();
             } catch (err: any) {
               Alert.alert('Error', err.message || 'Could not cancel booking. Try again.');
@@ -119,10 +123,10 @@ export default function MyBookingsScreen({ navigation }: any) {
 
   return (
     <View style={s.container}>
-      <SafeAreaView>
+      <SafeAreaView edges={['top']}>
         <View style={s.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-            <Text style={s.backArrow}>←</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={8}>
+            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={s.title}>My Bookings</Text>
           <View style={{ width: 36 }} />
@@ -134,6 +138,7 @@ export default function MyBookingsScreen({ navigation }: any) {
               key={tab.label}
               style={[s.tab, activeTab === i && s.tabActive]}
               onPress={() => setActiveTab(i)}
+              activeOpacity={0.85}
             >
               <Text style={[s.tabText, activeTab === i && s.tabTextActive]}>
                 {tab.label}
@@ -144,29 +149,36 @@ export default function MyBookingsScreen({ navigation }: any) {
       </SafeAreaView>
 
       {isLoading ? (
-        <ActivityIndicator color="#22C55E" style={{ marginTop: 60 }} />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 60 }} />
       ) : error ? (
         <View style={s.center}>
-          <Text style={s.errorText}>Failed to load bookings</Text>
-          <TouchableOpacity style={s.retryBtn} onPress={refetch}>
-            <Text style={s.retryText}>Retry</Text>
+          <Ionicons name="cloud-offline-outline" size={48} color={colors.textMuted} />
+          <Text style={s.errorTitle}>Couldn't load bookings</Text>
+          <Text style={s.errorMsg}>{error}</Text>
+          <TouchableOpacity style={s.retryBtn} onPress={refetch} activeOpacity={0.85}>
+            <Text style={s.retryText}>Try again</Text>
           </TouchableOpacity>
         </View>
       ) : list.length === 0 ? (
         <View style={s.center}>
-          <Text style={s.emptyIcon}>{activeTab === 0 ? '📅' : '🏟️'}</Text>
-          <Text style={s.emptyTitle}>No {TABS[activeTab].label} Bookings</Text>
+          <View style={s.emptyIconWrap}>
+            <Ionicons
+              name={activeTab === 0 ? 'calendar-outline' : 'time-outline'}
+              size={36}
+              color={colors.primary}
+            />
+          </View>
+          <Text style={s.emptyTitle}>No {TABS[activeTab].label} bookings</Text>
           <Text style={s.emptySubtitle}>
-            {activeTab === 0
-              ? 'Book a pitch to get started'
-              : 'Your past bookings will appear here'}
+            {activeTab === 0 ? 'Find a pitch and book your next match.' : 'Your past bookings will show up here.'}
           </Text>
           {activeTab === 0 && (
             <TouchableOpacity
               style={s.browseBtn}
-              onPress={() => navigation.navigate('Main')}
+              onPress={() => navigation.navigate('Main', { screen: 'Home' })}
+              activeOpacity={0.85}
             >
-              <Text style={s.browseBtnText}>Browse Pitches</Text>
+              <Text style={s.browseBtnText}>Browse pitches</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -174,17 +186,19 @@ export default function MyBookingsScreen({ navigation }: any) {
         <FlatList
           data={list}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+          contentContainerStyle={{ padding: SPACING.base, paddingBottom: SPACING['3xl'] }}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#22C55E" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
           }
           renderItem={({ item }) => (
             <BookingCard
               booking={item}
               cancelling={cancellingId === item.id}
+              colors={colors}
+              styles={s}
               onPress={() => navigation.navigate('BookingConfirmation', { bookingId: item.id })}
-              onCancel={['CONFIRMED', 'PENDING', 'PENDING_PAYMENT'].includes(item.status) ? () => handleCancel(item) : undefined}
+              onCancel={['CONFIRMED', 'PENDING_PAYMENT'].includes(item.status) ? () => handleCancel(item) : undefined}
               onReview={item.status === 'COMPLETED' ? () => openReviewModal(item) : undefined}
             />
           )}
@@ -195,25 +209,28 @@ export default function MyBookingsScreen({ navigation }: any) {
       <Modal visible={reviewModal} transparent animationType="slide" onRequestClose={() => setReviewModal(false)}>
         <View style={s.modalOverlay}>
           <View style={s.modalCard}>
+            <View style={s.modalHandle} />
             <Text style={s.modalTitle}>Leave a Review</Text>
             <Text style={s.modalSubtitle} numberOfLines={1}>
               {reviewBooking?.pitchName ?? reviewBooking?.pitch?.name ?? 'Pitch'}
             </Text>
 
-            {/* Star rating */}
             <View style={s.starsRow}>
               {[1, 2, 3, 4, 5].map(star => (
-                <TouchableOpacity key={star} onPress={() => setReviewRating(star)}>
-                  <Text style={[s.star, star <= reviewRating && s.starActive]}>★</Text>
+                <TouchableOpacity key={star} onPress={() => setReviewRating(star)} hitSlop={4}>
+                  <Ionicons
+                    name={star <= reviewRating ? 'star' : 'star-outline'}
+                    size={36}
+                    color={star <= reviewRating ? '#FBBF24' : colors.textMuted}
+                  />
                 </TouchableOpacity>
               ))}
             </View>
 
-            {/* Comment */}
             <TextInput
               style={s.reviewInput}
               placeholder="Share your experience (10+ characters)..."
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               multiline
               numberOfLines={4}
               value={reviewComment}
@@ -223,14 +240,13 @@ export default function MyBookingsScreen({ navigation }: any) {
             {reviewError ? <Text style={s.reviewError}>{reviewError}</Text> : null}
 
             <View style={s.modalBtns}>
-              <TouchableOpacity style={s.modalCancelBtn} onPress={() => setReviewModal(false)} disabled={reviewLoading}>
+              <TouchableOpacity style={s.modalCancelBtn} onPress={() => setReviewModal(false)} disabled={reviewLoading} activeOpacity={0.85}>
                 <Text style={s.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.modalSubmitBtn} onPress={submitReview} disabled={reviewLoading}>
+              <TouchableOpacity style={s.modalSubmitBtn} onPress={submitReview} disabled={reviewLoading} activeOpacity={0.85}>
                 {reviewLoading
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={s.modalSubmitText}>Submit</Text>
-                }
+                  : <Text style={s.modalSubmitText}>Submit</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -243,37 +259,42 @@ export default function MyBookingsScreen({ navigation }: any) {
 function BookingCard({
   booking,
   cancelling,
+  colors,
+  styles: s,
   onPress,
   onCancel,
   onReview,
 }: {
   booking: any;
   cancelling: boolean;
+  colors: ColorPalette;
+  styles: ReturnType<typeof makeStyles>;
   onPress: () => void;
   onCancel?: () => void;
   onReview?: () => void;
 }) {
-  const color  = STATUS_COLORS[booking.status] || '#6B7280';
-  const label  = STATUS_LABELS[booking.status] || booking.status;
-  const image  = booking.pitch?.images?.[0]?.url;
+  const status = booking.status;
+  const sc = getStatusColors(status, colors);
+  const label = STATUS_LABELS[status] || status;
+  const image = booking.pitch?.images?.[0]?.url;
   const dateStr = booking.date
     ? new Date(booking.date).toLocaleDateString('en-KE', {
-        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+        weekday: 'short', day: 'numeric', month: 'short',
       })
     : '—';
 
   return (
-    <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.92}>
       <View style={s.cardImageWrap}>
         {image ? (
           <Image source={{ uri: image }} style={s.cardImage} />
         ) : (
           <View style={[s.cardImage, s.cardImagePlaceholder]}>
-            <Text style={{ fontSize: 28 }}>🏟️</Text>
+            <Ionicons name="football-outline" size={32} color={colors.textMuted} />
           </View>
         )}
-        <View style={[s.statusBadge, { backgroundColor: color + '22', borderColor: color }]}>
-          <Text style={[s.statusText, { color }]}>{label}</Text>
+        <View style={[s.statusBadge, { backgroundColor: sc.bg }]}>
+          <Text style={[s.statusText, { color: sc.fg }]}>{label}</Text>
         </View>
       </View>
 
@@ -281,17 +302,20 @@ function BookingCard({
         <Text style={s.pitchName} numberOfLines={1}>
           {booking.pitchName || booking.pitch?.name || '—'}
         </Text>
-        <Text style={s.pitchAddr} numberOfLines={1}>
-          {booking.pitchAddress || booking.pitch?.address || '—'}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: SPACING.sm }}>
+          <Ionicons name="location-outline" size={12} color={colors.textMuted} />
+          <Text style={s.pitchAddr} numberOfLines={1}>
+            {booking.pitchAddress || booking.pitch?.address || '—'}
+          </Text>
+        </View>
 
         <View style={s.cardRow}>
           <View style={s.cardMeta}>
-            <Text style={s.metaIcon}>📅</Text>
+            <Ionicons name="calendar-outline" size={13} color={colors.textSecondary} />
             <Text style={s.metaText}>{dateStr}</Text>
           </View>
           <View style={s.cardMeta}>
-            <Text style={s.metaIcon}>⏰</Text>
+            <Ionicons name="time-outline" size={13} color={colors.textSecondary} />
             <Text style={s.metaText}>{booking.startTime} – {booking.endTime}</Text>
           </View>
         </View>
@@ -303,20 +327,21 @@ function BookingCard({
           )}
         </View>
 
-        {/* Action buttons */}
         {(onCancel || onReview) && (
           <View style={s.actionRow}>
             {onReview && (
-              <TouchableOpacity style={s.reviewBtn} onPress={onReview}>
-                <Text style={s.reviewBtnText}>⭐ Leave Review</Text>
+              <TouchableOpacity style={s.reviewBtn} onPress={onReview} activeOpacity={0.85}>
+                <Ionicons name="star-outline" size={14} color={colors.primary} />
+                <Text style={s.reviewBtnText}>Leave Review</Text>
               </TouchableOpacity>
             )}
             {onCancel && (
-              <TouchableOpacity style={s.cancelBtn} onPress={onCancel} disabled={cancelling}>
-                {cancelling
-                  ? <ActivityIndicator color="#EF4444" size="small" />
-                  : <Text style={s.cancelBtnText}>Cancel</Text>
-                }
+              <TouchableOpacity style={s.cancelBtn} onPress={onCancel} disabled={cancelling} activeOpacity={0.85}>
+                {cancelling ? (
+                  <ActivityIndicator color={colors.error} size="small" />
+                ) : (
+                  <Text style={s.cancelBtnText}>Cancel</Text>
+                )}
               </TouchableOpacity>
             )}
           </View>
@@ -326,61 +351,286 @@ function BookingCard({
   );
 }
 
-const s = StyleSheet.create({
-  container:            { flex: 1, backgroundColor: '#0F1923' },
-  header:               { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-  backBtn:              { width: 36, height: 36, justifyContent: 'center' },
-  backArrow:            { fontSize: 22, color: '#fff' },
-  title:                { fontSize: 18, fontWeight: '700', color: '#fff' },
-  tabRow:               { flexDirection: 'row', marginHorizontal: 16, marginBottom: 8, backgroundColor: '#1A2535', borderRadius: 12, padding: 4 },
-  tab:                  { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-  tabActive:            { backgroundColor: '#22C55E' },
-  tabText:              { color: '#6B7280', fontWeight: '600', fontSize: 14 },
-  tabTextActive:        { color: '#fff' },
-  center:               { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  errorText:            { color: '#EF4444', fontSize: 15, marginBottom: 12 },
-  retryBtn:             { backgroundColor: '#1A2535', paddingHorizontal: 24, paddingVertical: 10, borderRadius: 10 },
-  retryText:            { color: '#22C55E', fontWeight: '600' },
-  emptyIcon:            { fontSize: 48, marginBottom: 16 },
-  emptyTitle:           { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 8 },
-  emptySubtitle:        { color: '#6B7280', fontSize: 14, textAlign: 'center', marginBottom: 24 },
-  browseBtn:            { backgroundColor: '#22C55E', paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12 },
-  browseBtnText:        { color: '#fff', fontWeight: '700', fontSize: 15 },
-  card:                 { backgroundColor: '#1A2535', borderRadius: 16, marginBottom: 14, overflow: 'hidden' },
-  cardImageWrap:        { position: 'relative' },
-  cardImage:            { width: '100%', height: 120 },
-  cardImagePlaceholder: { backgroundColor: '#0F1923', justifyContent: 'center', alignItems: 'center' },
-  statusBadge:          { position: 'absolute', top: 10, right: 10, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  statusText:           { fontSize: 11, fontWeight: '700' },
-  cardBody:             { padding: 14 },
-  pitchName:            { color: '#fff', fontSize: 15, fontWeight: '700', marginBottom: 2 },
-  pitchAddr:            { color: '#9CA3AF', fontSize: 12, marginBottom: 10 },
-  cardRow:              { flexDirection: 'row', gap: 16, marginBottom: 10 },
-  cardMeta:             { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaIcon:             { fontSize: 13 },
-  metaText:             { color: '#D1D5DB', fontSize: 12 },
-  cardFooter:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  amount:               { color: '#22C55E', fontWeight: '800', fontSize: 16 },
-  ticketId:             { color: '#6B7280', fontSize: 11 },
-  actionRow:            { flexDirection: 'row', gap: 8, marginTop: 4 },
-  cancelBtn:            { flex: 1, height: 36, borderRadius: 10, borderWidth: 1.5, borderColor: '#EF4444', alignItems: 'center', justifyContent: 'center' },
-  cancelBtnText:        { color: '#EF4444', fontWeight: '600', fontSize: 13 },
-  reviewBtn:            { flex: 1, height: 36, borderRadius: 10, backgroundColor: 'rgba(34,197,94,0.12)', alignItems: 'center', justifyContent: 'center' },
-  reviewBtnText:        { color: '#22C55E', fontWeight: '600', fontSize: 13 },
+function makeStyles(colors: ColorPalette) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
 
-  // Review modal
-  modalOverlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalCard:       { backgroundColor: '#1A2535', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
-  modalTitle:      { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 4 },
-  modalSubtitle:   { fontSize: 14, color: '#9CA3AF', marginBottom: 20 },
-  starsRow:        { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  star:            { fontSize: 36, color: '#374151' },
-  starActive:      { color: '#F59E0B' },
-  reviewInput:     { backgroundColor: '#0F1923', borderRadius: 12, borderWidth: 1, borderColor: '#374151', color: '#fff', fontSize: 14, padding: 14, minHeight: 100, textAlignVertical: 'top', marginBottom: 12 },
-  reviewError:     { color: '#EF4444', fontSize: 13, marginBottom: 12 },
-  modalBtns:       { flexDirection: 'row', gap: 10 },
-  modalCancelBtn:  { flex: 1, height: 48, borderRadius: 12, borderWidth: 1.5, borderColor: '#374151', alignItems: 'center', justifyContent: 'center' },
-  modalCancelText: { color: '#9CA3AF', fontWeight: '600' },
-  modalSubmitBtn:  { flex: 2, height: 48, borderRadius: 12, backgroundColor: '#22C55E', alignItems: 'center', justifyContent: 'center' },
-  modalSubmitText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-});
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: SPACING.base,
+      paddingVertical: SPACING.md,
+    },
+    backBtn: {
+      width: 36,
+      height: 36,
+      justifyContent: 'center',
+      alignItems: 'flex-start',
+    },
+    title: {
+      fontSize: FONTS.lg,
+      fontWeight: FONT_WEIGHT.bold,
+      color: colors.textPrimary,
+    },
+
+    tabRow: {
+      flexDirection: 'row',
+      marginHorizontal: SPACING.base,
+      marginBottom: SPACING.sm,
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.md,
+      padding: SPACING.xs,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: SPACING.sm + 2,
+      borderRadius: RADIUS.sm,
+      alignItems: 'center',
+    },
+    tabActive: { backgroundColor: colors.primary },
+    tabText: {
+      color: colors.textMuted,
+      fontWeight: FONT_WEIGHT.semiBold,
+      fontSize: FONTS.sm,
+    },
+    tabTextActive: { color: '#fff' },
+
+    center: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: SPACING['2xl'],
+    },
+    errorTitle: {
+      color: colors.textPrimary,
+      fontSize: FONTS.md,
+      fontWeight: FONT_WEIGHT.bold,
+      marginTop: SPACING.md,
+    },
+    errorMsg: {
+      color: colors.textMuted,
+      fontSize: FONTS.sm,
+      textAlign: 'center',
+      marginTop: SPACING.xs,
+    },
+    retryBtn: {
+      marginTop: SPACING.lg,
+      backgroundColor: colors.primary,
+      paddingHorizontal: SPACING.xl,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.md,
+    },
+    retryText: {
+      color: '#fff',
+      fontWeight: FONT_WEIGHT.bold,
+      fontSize: FONTS.sm,
+    },
+
+    emptyIconWrap: {
+      width: 72,
+      height: 72,
+      borderRadius: RADIUS.full,
+      backgroundColor: colors.primaryMuted,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: SPACING.lg,
+    },
+    emptyTitle: {
+      color: colors.textPrimary,
+      fontSize: FONTS.lg,
+      fontWeight: FONT_WEIGHT.bold,
+      marginBottom: SPACING.xs,
+    },
+    emptySubtitle: {
+      color: colors.textMuted,
+      fontSize: FONTS.sm,
+      textAlign: 'center',
+      marginBottom: SPACING.xl,
+      lineHeight: 20,
+    },
+    browseBtn: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: SPACING.xl,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.md,
+    },
+    browseBtnText: {
+      color: '#fff',
+      fontWeight: FONT_WEIGHT.bold,
+      fontSize: FONTS.sm,
+    },
+
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      marginBottom: SPACING.md,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    cardImageWrap: { position: 'relative' },
+    cardImage: { width: '100%', height: 130 },
+    cardImagePlaceholder: {
+      backgroundColor: colors.surfaceAlt,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    statusBadge: {
+      position: 'absolute',
+      top: SPACING.md,
+      right: SPACING.md,
+      borderRadius: RADIUS.sm,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 4,
+    },
+    statusText: {
+      fontSize: FONTS.xs,
+      fontWeight: FONT_WEIGHT.bold,
+    },
+
+    cardBody: { padding: SPACING.base },
+    pitchName: {
+      color: colors.textPrimary,
+      fontSize: FONTS.md,
+      fontWeight: FONT_WEIGHT.bold,
+      marginBottom: 2,
+    },
+    pitchAddr: {
+      color: colors.textMuted,
+      fontSize: FONTS.xs,
+      flex: 1,
+    },
+    cardRow: {
+      flexDirection: 'row',
+      gap: SPACING.base,
+      marginBottom: SPACING.sm,
+    },
+    cardMeta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    metaText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.xs,
+      fontWeight: FONT_WEIGHT.medium,
+    },
+    cardFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: SPACING.xs,
+    },
+    amount: {
+      color: colors.primary,
+      fontWeight: FONT_WEIGHT.extraBold,
+      fontSize: FONTS.md,
+    },
+    ticketId: {
+      color: colors.textMuted,
+      fontSize: FONTS.xs,
+      fontFamily: 'System',
+    },
+
+    actionRow: {
+      flexDirection: 'row',
+      gap: SPACING.sm,
+      marginTop: SPACING.sm,
+    },
+    cancelBtn: {
+      flex: 1,
+      height: 38,
+      borderRadius: RADIUS.md,
+      borderWidth: 1.5,
+      borderColor: colors.error,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cancelBtnText: {
+      color: colors.error,
+      fontWeight: FONT_WEIGHT.semiBold,
+      fontSize: FONTS.sm,
+    },
+    reviewBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      gap: 6,
+      height: 38,
+      borderRadius: RADIUS.md,
+      backgroundColor: colors.primaryMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    reviewBtnText: {
+      color: colors.primary,
+      fontWeight: FONT_WEIGHT.semiBold,
+      fontSize: FONTS.sm,
+    },
+
+    // Review modal
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    modalCard: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      padding: SPACING.xl,
+      paddingBottom: SPACING['3xl'],
+    },
+    modalHandle: {
+      alignSelf: 'center',
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border,
+      marginBottom: SPACING.lg,
+    },
+    modalTitle: {
+      fontSize: FONTS.xl,
+      fontWeight: FONT_WEIGHT.bold,
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    modalSubtitle: {
+      fontSize: FONTS.sm,
+      color: colors.textMuted,
+      marginBottom: SPACING.lg,
+    },
+    starsRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg },
+    reviewInput: {
+      backgroundColor: colors.background,
+      borderRadius: RADIUS.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      color: colors.textPrimary,
+      fontSize: FONTS.sm,
+      padding: SPACING.md,
+      minHeight: 100,
+      textAlignVertical: 'top',
+      marginBottom: SPACING.sm,
+    },
+    reviewError: { color: colors.error, fontSize: FONTS.sm, marginBottom: SPACING.sm },
+    modalBtns: { flexDirection: 'row', gap: SPACING.sm },
+    modalCancelBtn: {
+      flex: 1,
+      height: 48,
+      borderRadius: RADIUS.md,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalCancelText: { color: colors.textSecondary, fontWeight: FONT_WEIGHT.semiBold },
+    modalSubmitBtn: {
+      flex: 2,
+      height: 48,
+      borderRadius: RADIUS.md,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalSubmitText: { color: '#fff', fontWeight: FONT_WEIGHT.bold, fontSize: FONTS.sm },
+  });
+}

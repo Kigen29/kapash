@@ -86,6 +86,7 @@ interface AuthContextType extends AuthState {
   logout: () => Promise<void>;
   updateUser: (data: Partial<User>) => void;
   clearError: () => void;
+  devLogin: (role: 'PLAYER' | 'OWNER') => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -183,6 +184,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearError = useCallback(() => dispatch({ type: 'CLEAR_ERROR' }), []);
 
+  // DEV ONLY — bypass auth to preview screens. Calls backend /auth/dev-login to get real tokens
+  // so authenticated endpoints (pitches, bookings, dashboard, etc.) actually work.
+  const devLogin = useCallback(async (role: 'PLAYER' | 'OWNER') => {
+    try {
+      const { data } = await AUTH.devLogin(role);
+      const payload = data.data || data;
+      await TokenStorage.setTokens(payload.accessToken, payload.refreshToken);
+      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(payload.user));
+      dispatch({ type: 'LOGIN_SUCCESS', payload: payload.user as User });
+    } catch (err: any) {
+      dispatch({ type: 'ERROR', payload: err?.message || 'Dev login failed.' });
+    }
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -193,6 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         updateUser,
         clearError,
+        devLogin,
       }}
     >
       {children}

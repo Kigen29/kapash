@@ -290,6 +290,152 @@ export async function verifyPhoneLink(req: Request, res: Response) {
   });
 }
 
+// ── Dev Login (DEV ONLY — bypass auth for screen testing) ─────────────────────
+
+const devLoginSchema = z.object({
+  role: z.enum(['PLAYER', 'OWNER']),
+});
+
+export async function devLogin(req: Request, res: Response) {
+  if (env.NODE_ENV === 'production') {
+    throw new AppError('Not available in production.', 403);
+  }
+
+  const { role } = devLoginSchema.parse(req.body);
+
+  const phone = role === 'OWNER' ? '+254700000001' : '+254700000002';
+  const email = role === 'OWNER' ? 'dev-owner@kapash.local' : 'dev-player@kapash.local';
+  const name  = role === 'OWNER' ? 'Dev Owner' : 'Dev Player';
+
+  let user = await (prisma.user as any).findUnique({ where: { phone } });
+  if (!user) {
+    user = await (prisma.user as any).create({
+      data: { phone, email, name, role, isVerified: true, phoneVerified: true },
+    });
+  } else if (user.role !== role) {
+    user = await (prisma.user as any).update({ where: { id: user.id }, data: { role } });
+  }
+
+  // Seed sample data so screens have something to render
+  await seedDevData(user.id, role).catch(err => console.error('Dev seed failed:', err));
+
+  await issueTokensForUser(res, user.id, user.role, false, user);
+}
+
+async function seedDevData(userId: string, role: 'PLAYER' | 'OWNER') {
+  // Ensure a dev owner + sample pitch exist (used by both Player and Owner seeds)
+  const ownerPhone = '+254700000001';
+  let owner = await (prisma.user as any).findUnique({ where: { phone: ownerPhone } });
+  if (!owner) {
+    owner = await (prisma.user as any).create({
+      data: {
+        phone: ownerPhone,
+        email: 'dev-owner@kapash.local',
+        name: 'Dev Owner',
+        role: 'OWNER',
+        isVerified: true,
+        phoneVerified: true,
+      },
+    });
+  }
+
+  let pitch = await prisma.pitch.findFirst({ where: { ownerId: owner.id } });
+  if (!pitch) {
+    pitch = await prisma.pitch.create({
+      data: {
+        ownerId: owner.id,
+        name: 'Greenfield Astro Arena',
+        description: 'Premium 7-a-side astro turf in Westlands. Floodlights, parking, changing rooms.',
+        address: 'Westlands Road, Nairobi',
+        city: 'Nairobi',
+        county: 'Nairobi',
+        latitude: -1.2649,
+        longitude: 36.8025,
+        type: 'ASTRO_TURF',
+        size: 'SEVEN_A_SIDE',
+        pricePerHour: 2500,
+        status: 'ACTIVE',
+        isVerified: true,
+        verifiedAt: new Date(),
+        avgRating: 4.6,
+        reviewCount: 28,
+        operatingHours: { mon: { open: '06:00', close: '22:00' } },
+      },
+    });
+    await prisma.pitchImage.create({
+      data: {
+        pitchId: pitch.id,
+        url: 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=800',
+        publicId: 'dev-seed-1',
+        isPrimary: true,
+        order: 0,
+      },
+    });
+  }
+
+  // Player: seed bookings if none yet
+  if (role === 'PLAYER') {
+    const existingCount = await prisma.booking.count({ where: { userId } });
+    if (existingCount > 0) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const samples = [
+      { offsetDays: +3,  startTime: '18:00', endTime: '19:00', status: 'CONFIRMED'  as const },
+      { offsetDays: +7,  startTime: '17:00', endTime: '18:00', status: 'CONFIRMED'  as const },
+      { offsetDays: -5,  startTime: '19:00', endTime: '20:00', status: 'COMPLETED'  as const },
+      { offsetDays: -14, startTime: '16:00', endTime: '17:00', status: 'COMPLETED'  as const },
+    ];
+
+    for (const sample of samples) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + sample.offsetDays);
+
+      const slot = await prisma.timeSlot.upsert({
+        where: {
+          pitchId_date_startTime: {
+            pitchId: pitch.id,
+            date,
+            startTime: sample.startTime,
+          },
+        },
+        update: { status: 'BOOKED', endTime: sample.endTime },
+        create: {
+          pitchId: pitch.id,
+          date,
+          startTime: sample.startTime,
+          endTime: sample.endTime,
+          status: 'BOOKED',
+        },
+      });
+
+      // Skip if a booking already exists on this slot
+      const existing = await prisma.booking.findUnique({ where: { slotId: slot.id } });
+      if (existing) continue;
+
+      await prisma.booking.create({
+        data: {
+          userId,
+          pitchId: pitch.id,
+          slotId: slot.id,
+          pitchName: pitch.name,
+          pitchAddress: pitch.address,
+          date,
+          startTime: sample.startTime,
+          endTime: sample.endTime,
+          durationMins: 60,
+          pricePerHour: pitch.pricePerHour,
+          totalAmount: pitch.pricePerHour,
+          commissionAmount: pitch.pricePerHour * pitch.commissionRate,
+          ownerAmount: pitch.pricePerHour * (1 - pitch.commissionRate),
+          status: sample.status,
+        },
+      });
+    }
+  }
+}
+
 // ── Refresh Token ─────────────────────────────────────────────────────────────
 
 export async function refreshToken(req: Request, res: Response) {

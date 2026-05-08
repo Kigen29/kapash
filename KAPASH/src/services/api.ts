@@ -153,6 +153,9 @@ export const AUTH = {
     apiFetch('/auth/refresh', { method: 'POST', body: { refreshToken: token } }, false),
 
   logout: () => apiFetch('/auth/logout', { method: 'POST' }),
+
+  devLogin: (role: 'PLAYER' | 'OWNER') =>
+    apiFetch('/auth/dev-login', { method: 'POST', body: { role } }, false),
 };
 
 // ─── PITCHES ──────────────────────────────────────────────────────────────────

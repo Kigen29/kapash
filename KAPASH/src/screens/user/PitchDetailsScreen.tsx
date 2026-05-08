@@ -1,57 +1,49 @@
-/**
- * PitchDetailsScreen - Connected to real backend
- * Place at: src/screens/user/PitchDetailsScreen.tsx
- */
-
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Alert,
-} from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { usePitch, usePitchSlots } from "../../hooks/useData";
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  ActivityIndicator, FlatList, Image, Alert, Dimensions,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { usePitch, usePitchSlots } from '../../hooks/useData';
+import { useTheme } from '../../context/ThemeContext';
+import { ColorPalette, FONTS, FONT_WEIGHT, RADIUS, SPACING } from '../../constants/theme';
+
+const SCREEN_W = Dimensions.get('window').width;
 
 function formatDate(d: Date): string {
-  return d.toISOString().split("T")[0]; // YYYY-MM-DD
+  return d.toISOString().split('T')[0];
 }
 
-function getDates(count = 7): { label: string; day: string; value: string }[] {
+function getDates(count = 14): { label: string; day: string; value: string; weekday: string }[] {
   const result = [];
   for (let i = 0; i < count; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
     result.push({
-      label:
-        i === 0 ? "Today" : d.toLocaleDateString("en-KE", { weekday: "short" }),
+      label: i === 0 ? 'Today' : i === 1 ? 'Tom' : d.toLocaleDateString('en-KE', { weekday: 'short' }),
       day: d.getDate().toString(),
       value: formatDate(d),
+      weekday: d.toLocaleDateString('en-KE', { weekday: 'short' }),
     });
   }
   return result;
 }
 
-const DATES = getDates(7);
+const DATES = getDates(14);
 
 export default function PitchDetailsScreen({ route, navigation }: any) {
   const { pitchId } = route.params;
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
   const [selectedDate, setSelectedDate] = useState(DATES[0].value);
   const [selectedSlotKey, setSelectedSlotKey] = useState<string | null>(null);
   const [imgIndex, setImgIndex] = useState(0);
 
   const { data: pitch, isLoading, error, refetch } = usePitch(pitchId);
-  const {
-    data: slots,
-    isLoading: slotsLoading,
-    refetch: refetchSlots,
-  } = usePitchSlots(pitchId, selectedDate);
+  const { data: slots, isLoading: slotsLoading } = usePitchSlots(pitchId, selectedDate);
 
   const handleDateChange = (date: string) => {
     setSelectedDate(date);
@@ -60,18 +52,12 @@ export default function PitchDetailsScreen({ route, navigation }: any) {
 
   const handleBook = useCallback(() => {
     if (!selectedSlotKey) {
-      Alert.alert(
-        "Select a slot",
-        "Please choose an available time slot first.",
-      );
+      Alert.alert('Select a slot', 'Please choose an available time slot first.');
       return;
     }
-    const slot = (slots as any[])?.find(
-      (s: any) => s.startTime === selectedSlotKey,
-    );
+    const slot = (slots as any[])?.find((sl: any) => sl.startTime === selectedSlotKey);
     if (!slot) return;
-
-    navigation.navigate("Checkout", {
+    navigation.navigate('Checkout', {
       pitchId,
       pitchName: pitch?.name,
       pitchAddress: pitch?.address,
@@ -81,24 +67,23 @@ export default function PitchDetailsScreen({ route, navigation }: any) {
       price: slot.price || pitch?.pricePerHour,
       pitchImage: (pitch as any)?.images?.[0]?.url,
     });
-  }, [selectedSlotKey, slots, pitch, selectedDate]);
+  }, [selectedSlotKey, slots, pitch, selectedDate, pitchId, navigation]);
 
   if (isLoading) {
     return (
-      <View style={s.loadingWrap}>
-        <ActivityIndicator color="#22C55E" size="large" />
+      <View style={[s.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
   }
 
   if (error || !pitch) {
     return (
-      <View style={s.loadingWrap}>
-        <Text style={{ color: "#9CA3AF", fontSize: 16 }}>
-          {error || "Pitch not found"}
-        </Text>
-        <TouchableOpacity style={s.retryBtn} onPress={refetch}>
-          <Text style={s.retryText}>Retry</Text>
+      <View style={[s.center, { backgroundColor: colors.background }]}>
+        <Ionicons name="cloud-offline-outline" size={48} color={colors.textMuted} />
+        <Text style={s.errorMsg}>{error || 'Pitch not found'}</Text>
+        <TouchableOpacity style={s.primaryBtn} onPress={refetch} activeOpacity={0.85}>
+          <Text style={s.primaryBtnText}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
@@ -106,9 +91,12 @@ export default function PitchDetailsScreen({ route, navigation }: any) {
 
   const images = pitch.images?.length
     ? pitch.images.map((i: any) => i.url)
-    : ["https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=800"];
+    : ['https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=800'];
   const amenities: any[] = pitch.amenities || [];
-  const slotList: any[] = slots || [];
+  const slotList: any[] = Array.isArray(slots) ? slots : [];
+  const rating = pitch.avgRating ?? pitch.rating;
+  const location = pitch.location || pitch.address || pitch.city;
+  const type = pitch.pitchType || pitch.type;
 
   return (
     <View style={s.container}>
@@ -121,76 +109,79 @@ export default function PitchDetailsScreen({ route, navigation }: any) {
           keyExtractor={(_, i) => String(i)}
           showsHorizontalScrollIndicator={false}
           onScroll={(e) =>
-            setImgIndex(
-              Math.round(
-                e.nativeEvent.contentOffset.x /
-                  e.nativeEvent.layoutMeasurement.width,
-              ),
-            )
+            setImgIndex(Math.round(e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width))
           }
-          renderItem={({ item }) => (
-            <Image source={{ uri: item }} style={s.heroImg} />
-          )}
+          renderItem={({ item }) => <Image source={{ uri: item }} style={s.heroImg} />}
         />
+        <LinearGradient colors={['rgba(0,0,0,0.5)', 'transparent']} style={s.imgTopGrad} />
         <LinearGradient
-          colors={["rgba(0,0,0,0.5)", "transparent"]}
-          style={s.imgTopGrad}
-        />
-        <LinearGradient
-          colors={["transparent", "rgba(15,25,35,0.95)"]}
+          colors={['transparent', `${colors.background}f0`]}
           style={s.imgBotGrad}
         />
 
-        {/* Back */}
-        <SafeAreaView style={s.backWrap}>
-          <TouchableOpacity
-            style={s.backBtn}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={s.backTxt}>←</Text>
-          </TouchableOpacity>
+        <SafeAreaView edges={['top']} style={s.headerWrap}>
+          <View style={s.headerRow}>
+            <TouchableOpacity style={s.headerBtn} onPress={() => navigation.goBack()} activeOpacity={0.85}>
+              <Ionicons name="chevron-back" size={22} color="#fff" />
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
+              <TouchableOpacity style={s.headerBtn} activeOpacity={0.85}>
+                <Ionicons name="share-outline" size={20} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity style={s.headerBtn} activeOpacity={0.85}>
+                <Ionicons name="heart-outline" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
         </SafeAreaView>
 
-        {/* Dots */}
-        <View style={s.dots}>
-          {images.map((_: any, i: number) => (
-            <View key={i} style={[s.dot, imgIndex === i && s.dotActive]} />
-          ))}
-        </View>
+        {images.length > 1 && (
+          <View style={s.dots}>
+            {images.map((_: any, i: number) => (
+              <View key={i} style={[s.dot, imgIndex === i && s.dotActive]} />
+            ))}
+          </View>
+        )}
       </View>
 
-      <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView style={s.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         {/* Title & Price */}
         <View style={s.titleRow}>
           <View style={{ flex: 1 }}>
             <Text style={s.pitchName}>{pitch.name}</Text>
-            <Text style={s.pitchLoc}>📍 {pitch.location}</Text>
+            {location && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                <Ionicons name="location-outline" size={14} color={colors.textMuted} />
+                <Text style={s.pitchLoc}>{location}</Text>
+              </View>
+            )}
           </View>
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={s.price}>
-              KSh {pitch.pricePerHour?.toLocaleString()}
-            </Text>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={s.price}>KSh {pitch.pricePerHour?.toLocaleString()}</Text>
             <Text style={s.perHr}>/hour</Text>
           </View>
         </View>
 
         {/* Badges */}
         <View style={s.badgeRow}>
-          {pitch.rating && (
+          {rating ? (
             <View style={s.badge}>
-              <Text style={s.badgeTxt}>
-                ⭐ {pitch.rating.toFixed(1)} ({pitch._count?.reviews || 0})
-              </Text>
+              <Ionicons name="star" size={12} color="#FBBF24" />
+              <Text style={s.badgeText}>{Number(rating).toFixed(1)}</Text>
+              {pitch.reviewCount ? (
+                <Text style={s.badgeMeta}>({pitch.reviewCount})</Text>
+              ) : null}
             </View>
-          )}
-          <View style={s.badge}>
-            <Text style={s.badgeTxt}>👥 {pitch.capacity || 22} players</Text>
-          </View>
-          {pitch.instantBook && (
-            <View style={[s.badge, s.greenBadge]}>
-              <Text style={[s.badgeTxt, { color: "#22C55E" }]}>
-                ⚡ Instant Book
-              </Text>
+          ) : null}
+          {type ? (
+            <View style={[s.badge, { backgroundColor: colors.primaryMuted }]}>
+              <Text style={[s.badgeText, { color: colors.primary }]}>{formatType(type)}</Text>
+            </View>
+          ) : null}
+          {pitch.isVerified && (
+            <View style={[s.badge, { backgroundColor: colors.primaryMuted }]}>
+              <Ionicons name="checkmark-circle" size={12} color={colors.primary} />
+              <Text style={[s.badgeText, { color: colors.primary }]}>Verified</Text>
             </View>
           )}
         </View>
@@ -199,7 +190,7 @@ export default function PitchDetailsScreen({ route, navigation }: any) {
         {pitch.description && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>About</Text>
-            <Text style={s.desc}>{pitch.description}</Text>
+            <Text style={s.bodyText}>{pitch.description}</Text>
           </View>
         )}
 
@@ -207,309 +198,359 @@ export default function PitchDetailsScreen({ route, navigation }: any) {
         {amenities.length > 0 && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>Amenities</Text>
-            <View style={s.amenitiesWrap}>
+            <View style={s.amenityGrid}>
               {amenities.map((a: any) => (
                 <View key={a.id} style={s.amenityChip}>
-                  <Text style={s.amenityTxt}>
-                    {a.icon || "✓"} {a.name}
-                  </Text>
+                  <Text style={s.amenityIcon}>{a.icon || '⚽'}</Text>
+                  <Text style={s.amenityName}>{a.name}</Text>
                 </View>
               ))}
             </View>
           </View>
         )}
 
-        {/* Date Picker */}
+        {/* Date picker */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Select Date</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {DATES.map((d) => (
-              <TouchableOpacity
-                key={d.value}
-                style={[s.dateBtn, selectedDate === d.value && s.dateBtnActive]}
-                onPress={() => handleDateChange(d.value)}
-              >
-                <Text
-                  style={[
-                    s.dateLbl,
-                    selectedDate === d.value && s.dateLblActive,
-                  ]}
+          <Text style={s.sectionTitle}>Choose a date</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: SPACING.base, gap: SPACING.sm }}>
+            {DATES.map(d => {
+              const active = selectedDate === d.value;
+              return (
+                <TouchableOpacity
+                  key={d.value}
+                  style={[s.dateChip, active && s.dateChipActive]}
+                  onPress={() => handleDateChange(d.value)}
+                  activeOpacity={0.85}
                 >
-                  {d.label}
-                </Text>
-                <Text
-                  style={[
-                    s.dateDay,
-                    selectedDate === d.value && s.dateDayActive,
-                  ]}
-                >
-                  {d.day}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text style={[s.dateChipLabel, active && s.dateChipLabelActive]}>{d.label}</Text>
+                  <Text style={[s.dateChipDay, active && s.dateChipDayActive]}>{d.day}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
 
-        {/* Time Slots */}
+        {/* Slots */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Available Slots</Text>
+          <Text style={s.sectionTitle}>Available time slots</Text>
           {slotsLoading ? (
-            <ActivityIndicator color="#22C55E" style={{ marginTop: 20 }} />
+            <ActivityIndicator color={colors.primary} style={{ marginTop: SPACING.lg }} />
           ) : slotList.length === 0 ? (
-            <Text style={s.noSlots}>No slots available for this date</Text>
+            <View style={s.emptySlots}>
+              <Ionicons name="time-outline" size={28} color={colors.textMuted} />
+              <Text style={s.emptyText}>No slots available for this date</Text>
+            </View>
           ) : (
             <View style={s.slotsGrid}>
-              {slotList.map((slot: any) => {
-                const booked =
-                  slot.status === "UNAVAILABLE" ||
-                  slot.status === "BOOKED" ||
-                  slot.status === "BLOCKED";
-                const selected = selectedSlotKey === slot.startTime; // ✅ FIXED: use startTime not id
+              {slotList.map((sl: any) => {
+                const isAvailable = ['available', 'AVAILABLE'].includes(sl.status);
+                const isSelected = selectedSlotKey === sl.startTime;
+                const isBooked = ['booked', 'BOOKED', 'held', 'HELD'].includes(sl.status);
                 return (
                   <TouchableOpacity
-                    key={slot.startTime} // ✅ FIXED: key on startTime
+                    key={sl.startTime}
                     style={[
-                      s.slot,
-                      booked && s.slotBooked,
-                      selected && s.slotSelected,
+                      s.slotChip,
+                      isAvailable && s.slotChipAvailable,
+                      isSelected && s.slotChipSelected,
+                      isBooked && s.slotChipBooked,
                     ]}
-                    onPress={() =>
-                      !booked && setSelectedSlotKey(slot.startTime)
-                    } // ✅ FIXED
-                    disabled={booked}
+                    onPress={() => isAvailable && setSelectedSlotKey(sl.startTime)}
+                    disabled={!isAvailable}
+                    activeOpacity={0.85}
                   >
-                    <Text
-                      style={[
-                        s.slotTime,
-                        booked && s.slotTimeBooked,
-                        selected && s.slotTimeSelected,
-                      ]}
-                    >
-                      {formatTime(slot.startTime)} – {formatTime(slot.endTime)}
+                    <Text style={[
+                      s.slotText,
+                      isSelected && s.slotTextSelected,
+                      isBooked && s.slotTextBooked,
+                    ]}>
+                      {sl.startTime}
                     </Text>
-                    {slot.price && (
-                      <Text
-                        style={[s.slotPrice, selected && { color: "#fff" }]}
-                      >
-                        KSh {slot.price?.toLocaleString()}
-                      </Text>
-                    )}
-                    {booked && <Text style={s.slotBookedTxt}>Booked</Text>}
                   </TouchableOpacity>
                 );
               })}
             </View>
           )}
         </View>
-
-        <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Sticky Footer */}
-      <View style={s.footer}>
-        <View>
-          <Text style={s.footerLabel}>Price per hour</Text>
-          <Text style={s.footerPrice}>
-            KSh {pitch.pricePerHour?.toLocaleString()}
-          </Text>
-        </View>
-        <TouchableOpacity
-          onPress={handleBook}
-          style={s.bookBtnWrap}
-          activeOpacity={0.85}
-        >
-          <LinearGradient
-            colors={["#22C55E", "#16A34A"]}
-            style={s.bookBtn}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+      {/* Bottom CTA */}
+      <SafeAreaView edges={['bottom']} style={s.ctaWrap}>
+        <View style={s.ctaInner}>
+          <View>
+            <Text style={s.ctaLabel}>{selectedSlotKey ? 'Selected' : 'Pick a slot'}</Text>
+            <Text style={s.ctaPrice}>
+              {selectedSlotKey ? `${selectedSlotKey} – ${slotList.find((sl: any) => sl.startTime === selectedSlotKey)?.endTime ?? ''}` : `KSh ${pitch.pricePerHour?.toLocaleString()}/hr`}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[s.ctaBtn, !selectedSlotKey && s.ctaBtnDisabled]}
+            onPress={handleBook}
+            disabled={!selectedSlotKey}
+            activeOpacity={0.9}
           >
-            <Text style={s.bookBtnTxt}>Book Now</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+            <Text style={s.ctaBtnText}>Book Now</Text>
+            <Ionicons name="arrow-forward" size={18} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     </View>
   );
 }
 
-function formatTime(t: string) {
-  if (!t) return "";
-  const [h, m] = t.split(":");
-  const hour = parseInt(h);
-  return `${hour > 12 ? hour - 12 : hour}:${m || "00"} ${hour >= 12 ? "PM" : "AM"}`;
+function formatType(type: string) {
+  return type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0F1923" },
-  loadingWrap: {
-    flex: 1,
-    backgroundColor: "#0F1923",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  retryBtn: {
-    marginTop: 16,
-    backgroundColor: "#22C55E",
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  retryText: { color: "#fff", fontWeight: "600" },
+function makeStyles(colors: ColorPalette) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl, gap: SPACING.md },
+    errorMsg: { color: colors.textMuted, fontSize: FONTS.sm, textAlign: 'center' },
+    primaryBtn: {
+      marginTop: SPACING.sm,
+      backgroundColor: colors.primary,
+      paddingHorizontal: SPACING.xl,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.md,
+    },
+    primaryBtnText: { color: '#fff', fontWeight: FONT_WEIGHT.bold, fontSize: FONTS.sm },
 
-  imgWrap: { height: 280, position: "relative" },
-  heroImg: { width: 380, height: 280 }, // approximated
-  imgTopGrad: { position: "absolute", top: 0, left: 0, right: 0, height: 100 },
-  imgBotGrad: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 100,
-  },
-  backWrap: { position: "absolute", top: 0, left: 0 },
-  backBtn: {
-    margin: 16,
-    width: 36,
-    height: 36,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  backTxt: { color: "#fff", fontSize: 18 },
-  dots: {
-    position: "absolute",
-    bottom: 12,
-    alignSelf: "center",
-    flexDirection: "row",
-    gap: 4,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.4)",
-  },
-  dotActive: { backgroundColor: "#22C55E", width: 16 },
+    imgWrap: { width: SCREEN_W, height: 320, position: 'relative' },
+    heroImg: { width: SCREEN_W, height: 320 },
+    imgTopGrad: { position: 'absolute', top: 0, left: 0, right: 0, height: 100 },
+    imgBotGrad: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 100 },
 
-  scroll: { flex: 1 },
-  titleRow: { flexDirection: "row", padding: 16, paddingBottom: 8 },
-  pitchName: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#fff",
-    marginBottom: 4,
-  },
-  pitchLoc: { fontSize: 13, color: "#9CA3AF" },
-  price: { fontSize: 22, fontWeight: "800", color: "#22C55E" },
-  perHr: { fontSize: 12, color: "#6B7280" },
+    headerWrap: { position: 'absolute', top: 0, left: 0, right: 0 },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: SPACING.base,
+      paddingTop: SPACING.sm,
+    },
+    headerBtn: {
+      width: 40, height: 40,
+      borderRadius: RADIUS.full,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  badgeRow: {
-    flexDirection: "row",
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 8,
-    flexWrap: "wrap",
-  },
-  badge: {
-    backgroundColor: "#1A2535",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  greenBadge: { backgroundColor: "rgba(34,197,94,0.1)" },
-  badgeTxt: { color: "#D1D5DB", fontSize: 12, fontWeight: "600" },
+    dots: {
+      position: 'absolute', bottom: 12, alignSelf: 'center',
+      flexDirection: 'row', gap: 6,
+    },
+    dot: {
+      width: 6, height: 6, borderRadius: 3,
+      backgroundColor: 'rgba(255,255,255,0.5)',
+    },
+    dotActive: { width: 18, backgroundColor: '#fff' },
 
-  section: { paddingHorizontal: 16, marginBottom: 20 },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#fff",
-    marginBottom: 12,
-  },
-  desc: { color: "#9CA3AF", fontSize: 14, lineHeight: 22 },
-  amenitiesWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  amenityChip: {
-    backgroundColor: "#1A2535",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  amenityTxt: { color: "#D1D5DB", fontSize: 12, fontWeight: "600" },
+    scroll: { flex: 1, marginTop: -32 },
 
-  dateBtn: {
-    width: 60,
-    height: 70,
-    backgroundColor: "#1A2535",
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: "#374151",
-  },
-  dateBtnActive: {
-    borderColor: "#22C55E",
-    backgroundColor: "rgba(34,197,94,0.1)",
-  },
-  dateLbl: {
-    fontSize: 10,
-    color: "#6B7280",
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  dateLblActive: { color: "#22C55E" },
-  dateDay: { fontSize: 20, fontWeight: "700", color: "#D1D5DB" },
-  dateDayActive: { color: "#22C55E" },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      paddingHorizontal: SPACING.base,
+      paddingTop: SPACING.lg,
+      gap: SPACING.md,
+    },
+    pitchName: {
+      fontSize: FONTS['2xl'],
+      fontWeight: FONT_WEIGHT.bold,
+      color: colors.textPrimary,
+      letterSpacing: -0.3,
+    },
+    pitchLoc: {
+      fontSize: FONTS.sm,
+      color: colors.textMuted,
+      flex: 1,
+    },
+    price: {
+      fontSize: FONTS.xl,
+      fontWeight: FONT_WEIGHT.bold,
+      color: colors.primary,
+    },
+    perHr: { fontSize: FONTS.xs, color: colors.textMuted },
 
-  slotsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  slot: {
-    width: "47%",
-    backgroundColor: "#1A2535",
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: "#374151",
-  },
-  slotBooked: { opacity: 0.4 },
-  slotSelected: { borderColor: "#22C55E", backgroundColor: "#22C55E" },
-  slotTime: { color: "#D1D5DB", fontSize: 12, fontWeight: "600" },
-  slotTimeBooked: { color: "#6B7280" },
-  slotTimeSelected: { color: "#fff" },
-  slotPrice: { color: "#22C55E", fontSize: 11, marginTop: 2 },
-  slotBookedTxt: { color: "#6B7280", fontSize: 10, marginTop: 2 },
-  noSlots: {
-    color: "#6B7280",
-    fontSize: 14,
-    textAlign: "center",
-    paddingVertical: 24,
-  },
+    badgeRow: {
+      flexDirection: 'row',
+      gap: SPACING.sm,
+      paddingHorizontal: SPACING.base,
+      marginTop: SPACING.md,
+      flexWrap: 'wrap',
+    },
+    badge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    badgeText: {
+      fontSize: FONTS.xs,
+      fontWeight: FONT_WEIGHT.bold,
+      color: colors.textPrimary,
+    },
+    badgeMeta: {
+      fontSize: FONTS.xs,
+      color: colors.textMuted,
+      fontWeight: FONT_WEIGHT.medium,
+    },
 
-  footer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "#1A2535",
-    borderTopWidth: 1,
-    borderTopColor: "#374151",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: 28,
-  },
-  footerLabel: { color: "#6B7280", fontSize: 12 },
-  footerPrice: { color: "#fff", fontSize: 18, fontWeight: "700" },
-  bookBtnWrap: { flex: 0 },
-  bookBtn: {
-    paddingHorizontal: 32,
-    height: 48,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  bookBtnTxt: { color: "#fff", fontWeight: "700", fontSize: 15 },
-});
+    section: { marginTop: SPACING.xl },
+    sectionTitle: {
+      fontSize: FONTS.lg,
+      fontWeight: FONT_WEIGHT.bold,
+      color: colors.textPrimary,
+      paddingHorizontal: SPACING.base,
+      marginBottom: SPACING.md,
+    },
+    bodyText: {
+      fontSize: FONTS.sm,
+      color: colors.textSecondary,
+      lineHeight: 22,
+      paddingHorizontal: SPACING.base,
+    },
+
+    amenityGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: SPACING.sm,
+      paddingHorizontal: SPACING.base,
+    },
+    amenityChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    amenityIcon: { fontSize: 14 },
+    amenityName: {
+      fontSize: FONTS.xs,
+      color: colors.textPrimary,
+      fontWeight: FONT_WEIGHT.semiBold,
+    },
+
+    dateChip: {
+      width: 64,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.lg,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      gap: 4,
+    },
+    dateChipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    dateChipLabel: {
+      fontSize: FONTS.xs,
+      color: colors.textMuted,
+      fontWeight: FONT_WEIGHT.semiBold,
+    },
+    dateChipLabelActive: { color: 'rgba(255,255,255,0.85)' },
+    dateChipDay: {
+      fontSize: FONTS.lg,
+      fontWeight: FONT_WEIGHT.bold,
+      color: colors.textPrimary,
+    },
+    dateChipDayActive: { color: '#fff' },
+
+    slotsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: SPACING.sm,
+      paddingHorizontal: SPACING.base,
+    },
+    slotChip: {
+      width: (SCREEN_W - SPACING.base * 2 - SPACING.sm * 3) / 4,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+    },
+    slotChipAvailable: {},
+    slotChipSelected: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    slotChipBooked: {
+      backgroundColor: 'transparent',
+      borderColor: colors.borderLight,
+      opacity: 0.4,
+    },
+    slotText: {
+      fontSize: FONTS.sm,
+      fontWeight: FONT_WEIGHT.semiBold,
+      color: colors.textPrimary,
+    },
+    slotTextSelected: { color: '#fff' },
+    slotTextBooked: { color: colors.textMuted, textDecorationLine: 'line-through' },
+
+    emptySlots: {
+      alignItems: 'center',
+      gap: SPACING.sm,
+      paddingVertical: SPACING.xl,
+    },
+    emptyText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sm,
+    },
+
+    ctaWrap: {
+      position: 'absolute', bottom: 0, left: 0, right: 0,
+      backgroundColor: colors.surface,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    ctaInner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: SPACING.md,
+      paddingHorizontal: SPACING.base,
+      paddingVertical: SPACING.md,
+    },
+    ctaLabel: {
+      fontSize: FONTS.xs,
+      color: colors.textMuted,
+      fontWeight: FONT_WEIGHT.semiBold,
+    },
+    ctaPrice: {
+      fontSize: FONTS.md,
+      fontWeight: FONT_WEIGHT.bold,
+      color: colors.textPrimary,
+      marginTop: 2,
+    },
+    ctaBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      backgroundColor: colors.primary,
+      paddingHorizontal: SPACING.xl,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.md,
+    },
+    ctaBtnDisabled: { opacity: 0.5 },
+    ctaBtnText: {
+      color: '#fff',
+      fontWeight: FONT_WEIGHT.bold,
+      fontSize: FONTS.sm,
+    },
+  });
+}

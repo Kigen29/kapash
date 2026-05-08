@@ -1,53 +1,55 @@
-/**
- * OwnerDashboardScreen - Real backend data
- * Place at: src/screens/owner/OwnerDashboardScreen.tsx
- */
-
-import React, { useState } from "react";
+import React, { useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useOwnerDashboard } from "../../hooks/useData";
-import { useAuth } from "../../context/AuthContext";
-import { DashboardData } from "../../types/index";
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  ActivityIndicator, RefreshControl,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useOwnerBookings, useOwnerDashboard, useOwnerPitches } from '../../hooks/useData';
+import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import { ColorPalette, FONTS, FONT_WEIGHT, RADIUS, SPACING } from '../../constants/theme';
+import { DashboardData } from '../../types/index';
+
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+function todayISO() {
+  return new Date().toISOString().split('T')[0];
+}
 
 export default function OwnerDashboardScreen({ navigation }: any) {
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
   const [refreshing, setRefreshing] = useState(false);
-  const { data: dash, isLoading, refetch: refetchDash } = useOwnerDashboard();
+  const { data: dash, isLoading: dashLoading, refetch: refetchDash } = useOwnerDashboard();
+  const { data: pitches, refetch: refetchPitches } = useOwnerPitches();
+  const { data: confirmedBookings, refetch: refetchConfirmed } = useOwnerBookings({ status: 'CONFIRMED' });
 
-  // ✅ FIXED: declare d first, then derive bookings from it
   const d = (dash || {}) as DashboardData;
-  const bookings: any[] = d.todayBookingsList || [];
+  const pitchCount = Array.isArray(pitches) ? pitches.length : 0;
+  const upcomingBookings: any[] = Array.isArray(confirmedBookings) ? confirmedBookings : [];
+  const todayList: any[] = d.todayBookingsList || [];
 
-  // ✅ FIXED: onRefresh was missing entirely
   const onRefresh = async () => {
     setRefreshing(true);
-    await refetchDash();
+    await Promise.all([refetchDash(), refetchPitches(), refetchConfirmed()]);
     setRefreshing(false);
   };
 
   return (
     <View style={s.container}>
-      <SafeAreaView>
+      <SafeAreaView edges={['top']} style={s.safeTop}>
         <View style={s.header}>
-          <View>
-            <Text style={s.greeting}>Owner Dashboard</Text>
-            <Text style={s.subGreet}>{user?.name}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.greeting}>Dashboard</Text>
+            <Text style={s.subGreet}>{user?.name || 'Owner'}</Text>
           </View>
-          <TouchableOpacity
-            style={s.notifBtn}
-            onPress={() => navigation.navigate("Notifications")}
-          >
-            <Text style={s.notifIcon}>🔔</Text>
+          <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('Notifications')} activeOpacity={0.85}>
+            <Ionicons name="notifications-outline" size={20} color={colors.textPrimary} />
+            <View style={s.dot} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -55,21 +57,18 @@ export default function OwnerDashboardScreen({ navigation }: any) {
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#22C55E"
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
         }
+        contentContainerStyle={{ paddingBottom: SPACING['3xl'] }}
       >
-        {isLoading ? (
-          <ActivityIndicator color="#22C55E" style={{ marginTop: 60 }} />
+        {dashLoading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: SPACING['3xl'] }} />
         ) : (
           <>
-            {/* Revenue Hero */}
+            {/* Hero card */}
             <LinearGradient
-              colors={["#16A34A", "#22C55E"]}
-              style={s.heroCard}
+              colors={[colors.primaryDark, colors.primary]}
+              style={s.hero}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
@@ -78,305 +77,327 @@ export default function OwnerDashboardScreen({ navigation }: any) {
                 KSh {(d.monthlyRevenue || 0).toLocaleString()}
               </Text>
               <View style={s.heroRow}>
-                <MiniStat
-                  label="Today"
-                  value={`KSh ${(d.todayRevenue || 0).toLocaleString()}`}
-                />
-                <MiniStat label="Bookings" value={d.monthlyBookings || 0} />
-                <MiniStat
-                  label="Occupancy"
-                  value={`${d.occupancyRate || 0}%`}
-                />
+                <MiniStat label="Today"     value={`KSh ${(d.todayRevenue || 0).toLocaleString()}`} />
+                <View style={s.heroDivider} />
+                <MiniStat label="Bookings"  value={String(d.monthlyBookings || 0)} />
+                <View style={s.heroDivider} />
+                <MiniStat label="Occupancy" value={`${d.occupancyRate || 0}%`} />
               </View>
             </LinearGradient>
 
-            {/* Quick Stats */}
-            <View style={s.statsGrid}>
-              <StatCard
-                icon="📅"
-                label="Today's Bookings"
-                value={d.todayBookings || 0}
-                color="#22C55E"
-              />
-              <StatCard
-                icon="⏳"
-                label="Pending"
-                value={d.pendingBookings || 0}
-                color="#F59E0B"
-              />
-              <StatCard
-                icon="⭐"
-                label="Avg Rating"
-                value={`${Number(d.avgRating || 0).toFixed(1)}★`}
-                color="#F59E0B"
-              />
-              <StatCard
-                icon="💰"
-                label="Pending Payout"
-                value={`KSh ${(d.pendingPayout || 0).toLocaleString()}`}
-                color="#22C55E"
-              />
+            {/* Quick stats grid */}
+            <View style={s.grid}>
+              <StatCard icon="calendar-outline" label="Today's Bookings" value={d.todayBookings || 0} colors={colors} />
+              <StatCard icon="hourglass-outline" label="Pending"          value={d.pendingBookings || 0} colors={colors} />
+              <StatCard icon="star-outline"      label="Avg Rating"       value={(d.avgRating || 0).toFixed(1)} colors={colors} />
+              <StatCard icon="business-outline"  label="Pitches"          value={pitchCount} colors={colors} />
             </View>
 
-            {/* Quick Actions */}
-            <View style={s.section}>
-              <Text style={s.sectionTitle}>Quick Actions</Text>
-              <View style={s.actionsRow}>
-                <ActionBtn
-                  icon="📆"
-                  label="Schedule"
-                  onPress={() => navigation.navigate("Schedule")}
-                />
-                <ActionBtn
-                  icon="📊"
-                  label="Analytics"
-                  onPress={() => navigation.navigate("Analytics")}
-                />
-                <ActionBtn
-                  icon="🏟️"
-                  label="My Pitches"
-                  onPress={() => navigation.navigate("Account")}
-                />
-                <ActionBtn
-                  icon="💸"
-                  label="Payouts"
-                  onPress={() => navigation.navigate("Account")}
-                />
-              </View>
-            </View>
-
-            {/* Today's Bookings */}
-            <View style={s.section}>
-              <View style={s.sectionHeader}>
-                <Text style={s.sectionTitle}>Today's Bookings</Text>
-                <TouchableOpacity
-                  onPress={() => navigation.navigate("Schedule")}
-                >
-                  <Text style={s.seeAll}>View all</Text>
-                </TouchableOpacity>
-              </View>
-              {bookings.length === 0 ? (
-                <View style={s.emptyBox}>
-                  <Text style={s.emptyTxt}>No bookings today</Text>
+            {/* Pending payout */}
+            {(d.pendingPayout || 0) > 0 && (
+              <TouchableOpacity
+                style={s.payoutCard}
+                onPress={() => navigation.navigate('Account')}
+                activeOpacity={0.9}
+              >
+                <View style={s.payoutIconWrap}>
+                  <Ionicons name="wallet-outline" size={20} color={colors.primary} />
                 </View>
-              ) : (
-                bookings
-                  .slice(0, 5)
-                  .map((b: any) => <TodayBookingRow key={b.id} booking={b} />)
-              )}
-            </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.payoutLabel}>Pending Payout</Text>
+                  <Text style={s.payoutAmount}>KSh {(d.pendingPayout || 0).toLocaleString()}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            )}
+
+            {/* Today's bookings */}
+            <SectionHeader title="Today" colors={colors} count={todayList.length} />
+            {todayList.length === 0 ? (
+              <EmptyRow text="No bookings today" colors={colors} icon="calendar-clear-outline" />
+            ) : (
+              todayList.slice(0, 5).map((b: any) => (
+                <BookingRow key={b.id} booking={b} colors={colors} styles={s} />
+              ))
+            )}
+
+            {/* Upcoming bookings */}
+            <SectionHeader
+              title="Upcoming"
+              colors={colors}
+              count={upcomingBookings.length}
+              actionLabel={upcomingBookings.length > 5 ? 'See all' : undefined}
+              onAction={() => navigation.navigate('Schedule')}
+            />
+            {upcomingBookings.length === 0 ? (
+              <EmptyRow text="No upcoming bookings" colors={colors} icon="time-outline" />
+            ) : (
+              upcomingBookings
+                .filter((b: any) => b.date && b.date.split('T')[0] !== todayISO())
+                .slice(0, 5)
+                .map((b: any) => (
+                  <BookingRow key={b.id} booking={b} colors={colors} styles={s} />
+                ))
+            )}
           </>
         )}
-        <View style={{ height: 100 }} />
       </ScrollView>
     </View>
   );
 }
 
-// ─── SUB-COMPONENTS ───────────────────────────────────────────────────────────
+// ─── Sub-components ─────────────────────────────────────────────────────────────
 
-function MiniStat({ label, value }: { label: string; value: any }) {
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <View style={s.miniStat}>
-      <Text style={s.miniStatVal}>{value}</Text>
-      <Text style={s.miniStatLabel}>{label}</Text>
+    <View style={{ flex: 1, alignItems: 'center' }}>
+      <Text style={{ color: '#fff', fontWeight: FONT_WEIGHT.bold, fontSize: FONTS.sm }} numberOfLines={1}>
+        {value}
+      </Text>
+      <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: FONTS.xs, marginTop: 2 }}>{label}</Text>
     </View>
   );
 }
 
 function StatCard({
-  icon,
-  label,
-  value,
-  color,
-}: {
-  icon: string;
-  label: string;
-  value: any;
-  color: string;
-}) {
+  icon, label, value, colors,
+}: { icon: IoniconName; label: string; value: string | number; colors: ColorPalette }) {
   return (
-    <View style={s.statCard}>
-      <Text style={s.statIcon}>{icon}</Text>
-      <Text style={[s.statVal, { color }]}>{value}</Text>
-      <Text style={s.statLabel}>{label}</Text>
+    <View style={{
+      flexBasis: '48%',
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.base,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: SPACING.sm,
+    }}>
+      <View style={{
+        width: 36, height: 36, borderRadius: RADIUS.sm,
+        backgroundColor: colors.primaryMuted,
+        justifyContent: 'center', alignItems: 'center',
+      }}>
+        <Ionicons name={icon} size={18} color={colors.primary} />
+      </View>
+      <View>
+        <Text style={{ color: colors.textPrimary, fontSize: FONTS.xl, fontWeight: FONT_WEIGHT.bold }}>{value}</Text>
+        <Text style={{ color: colors.textMuted, fontSize: FONTS.xs, marginTop: 2 }}>{label}</Text>
+      </View>
     </View>
   );
 }
 
-function ActionBtn({
-  icon,
-  label,
-  onPress,
-}: {
-  icon: string;
-  label: string;
-  onPress: () => void;
-}) {
+function SectionHeader({
+  title, colors, count, actionLabel, onAction,
+}: { title: string; colors: ColorPalette; count?: number; actionLabel?: string; onAction?: () => void }) {
   return (
-    <TouchableOpacity style={s.actionBtn} onPress={onPress} activeOpacity={0.8}>
-      <View style={s.actionIconWrap}>
-        <Text style={s.actionIcon}>{icon}</Text>
+    <View style={{
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: SPACING.base,
+      marginTop: SPACING.xl,
+      marginBottom: SPACING.md,
+    }}>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: SPACING.sm }}>
+        <Text style={{ color: colors.textPrimary, fontSize: FONTS.lg, fontWeight: FONT_WEIGHT.bold }}>{title}</Text>
+        {count != null && (
+          <Text style={{ color: colors.textMuted, fontSize: FONTS.sm, fontWeight: FONT_WEIGHT.medium }}>
+            {count}
+          </Text>
+        )}
       </View>
-      <Text style={s.actionLabel}>{label}</Text>
-    </TouchableOpacity>
+      {actionLabel && onAction && (
+        <TouchableOpacity onPress={onAction} hitSlop={8}>
+          <Text style={{ color: colors.primary, fontSize: FONTS.sm, fontWeight: FONT_WEIGHT.semiBold }}>{actionLabel} →</Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 }
 
-function TodayBookingRow({ booking }: { booking: any }) {
-  const statusColors: Record<string, string> = {
-    CONFIRMED: "#22C55E",
-    PENDING: "#F59E0B",
-    PENDING_PAYMENT: "#F59E0B",
-    CANCELLED: "#EF4444",
-    COMPLETED: "#6B7280",
-  };
-  const color = statusColors[booking.status] || "#6B7280";
-
-  // ✅ FIXED: backend returns startTime/endTime directly on booking,
-  // not nested inside a timeSlot object
-  const startTime = booking.startTime ?? booking.timeSlot?.startTime ?? "—";
-  const endTime = booking.endTime ?? booking.timeSlot?.endTime ?? "—";
-  const amount = booking.totalAmount ?? booking.ownerAmount ?? 0;
-
+function EmptyRow({
+  text, colors, icon,
+}: { text: string; colors: ColorPalette; icon: IoniconName }) {
   return (
-    <View style={s.bookingRow}>
-      <View style={[s.bookingDot, { backgroundColor: color }]} />
+    <View style={{
+      marginHorizontal: SPACING.base,
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.lg,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+    }}>
+      <Ionicons name={icon} size={20} color={colors.textMuted} />
+      <Text style={{ color: colors.textMuted, fontSize: FONTS.sm }}>{text}</Text>
+    </View>
+  );
+}
+
+function BookingRow({
+  booking, colors, styles,
+}: { booking: any; colors: ColorPalette; styles: ReturnType<typeof makeStyles> }) {
+  const time = booking.startTime && booking.endTime ? `${booking.startTime} – ${booking.endTime}` : '—';
+  const dateStr = booking.date
+    ? new Date(booking.date).toLocaleDateString('en-KE', { weekday: 'short', day: 'numeric', month: 'short' })
+    : '';
+  const userName = booking.user?.name || booking.userName || 'Customer';
+  const pitchName = booking.pitchName || booking.pitch?.name || '';
+  return (
+    <View style={styles.bookingRow}>
+      <View style={styles.bookingTime}>
+        <Text style={styles.bookingTimeText}>{booking.startTime || '—'}</Text>
+        <Text style={styles.bookingDateText}>{dateStr || 'Today'}</Text>
+      </View>
       <View style={{ flex: 1 }}>
-        <Text style={s.bookingUser}>{booking.user?.name || "Customer"}</Text>
-        <Text style={s.bookingSlot}>
-          {startTime} – {endTime}
-        </Text>
+        <Text style={styles.bookingName} numberOfLines={1}>{userName}</Text>
+        <Text style={styles.bookingPitch} numberOfLines={1}>{pitchName} • {time}</Text>
       </View>
-      <Text style={[s.bookingStatus, { color }]}>{booking.status}</Text>
-      <Text style={s.bookingAmt}>KSh {amount.toLocaleString()}</Text>
+      <Text style={styles.bookingAmount}>
+        KSh {(booking.totalAmount || 0).toLocaleString()}
+      </Text>
     </View>
   );
 }
 
-// ─── STYLES ───────────────────────────────────────────────────────────────────
+// ─── Styles ─────────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0F1923" },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    paddingTop: 8,
-  },
-  greeting: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  subGreet: { fontSize: 20, fontWeight: "700", color: "#fff" },
-  notifBtn: {
-    width: 40,
-    height: 40,
-    backgroundColor: "#1A2535",
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  notifIcon: { fontSize: 18 },
+function makeStyles(colors: ColorPalette) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    safeTop:   { backgroundColor: colors.background },
 
-  heroCard: {
-    marginHorizontal: 16,
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-  },
-  heroLabel: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.8)",
-    marginBottom: 8,
-  },
-  heroAmount: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#fff",
-    marginBottom: 16,
-  },
-  heroRow: { flexDirection: "row", justifyContent: "space-between" },
-  miniStat: { alignItems: "center" },
-  miniStatVal: { fontSize: 15, fontWeight: "700", color: "#fff" },
-  miniStatLabel: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.7)",
-    marginTop: 2,
-  },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: SPACING.base,
+      paddingVertical: SPACING.md,
+      gap: SPACING.sm,
+    },
+    greeting: { fontSize: FONTS.sm, color: colors.textMuted },
+    subGreet: {
+      fontSize: FONTS['2xl'],
+      fontWeight: FONT_WEIGHT.bold,
+      color: colors.textPrimary,
+      marginTop: 2,
+    },
+    iconBtn: {
+      width: 40, height: 40,
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.md,
+      justifyContent: 'center', alignItems: 'center',
+      borderWidth: 1, borderColor: colors.border,
+    },
+    dot: {
+      position: 'absolute', top: 9, right: 10,
+      width: 8, height: 8, borderRadius: 4,
+      backgroundColor: colors.primary,
+      borderWidth: 1.5, borderColor: colors.surface,
+    },
 
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginHorizontal: 16,
-    marginBottom: 20,
-  },
-  statCard: {
-    width: "47%",
-    backgroundColor: "#1A2535",
-    borderRadius: 14,
-    padding: 14,
-    alignItems: "center",
-  },
-  statIcon: { fontSize: 24, marginBottom: 8 },
-  statVal: { fontSize: 18, fontWeight: "700", marginBottom: 2 },
-  statLabel: { color: "#9CA3AF", fontSize: 11, textAlign: "center" },
+    hero: {
+      marginHorizontal: SPACING.base,
+      borderRadius: RADIUS.xl,
+      padding: SPACING.xl,
+      marginTop: SPACING.sm,
+    },
+    heroLabel: {
+      color: 'rgba(255,255,255,0.85)',
+      fontSize: FONTS.sm,
+      fontWeight: FONT_WEIGHT.semiBold,
+    },
+    heroAmount: {
+      color: '#fff',
+      fontSize: FONTS['4xl'],
+      fontWeight: FONT_WEIGHT.bold,
+      marginTop: SPACING.xs,
+      letterSpacing: -0.5,
+    },
+    heroRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.18)',
+      borderRadius: RADIUS.md,
+      paddingVertical: SPACING.md,
+      marginTop: SPACING.lg,
+    },
+    heroDivider: {
+      width: StyleSheet.hairlineWidth,
+      backgroundColor: 'rgba(255,255,255,0.4)',
+      alignSelf: 'stretch',
+    },
 
-  section: { paddingHorizontal: 16, marginBottom: 20 },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#fff",
-    marginBottom: 12,
-  },
-  seeAll: { color: "#22C55E", fontSize: 13, fontWeight: "600" },
+    grid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: SPACING.base,
+      gap: SPACING.md,
+      marginTop: SPACING.base,
+    },
 
-  actionsRow: { flexDirection: "row", justifyContent: "space-between" },
-  actionBtn: { alignItems: "center", flex: 1 },
-  actionIconWrap: {
-    width: 52,
-    height: 52,
-    backgroundColor: "#1A2535",
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  actionIcon: { fontSize: 24 },
-  actionLabel: { color: "#9CA3AF", fontSize: 11, fontWeight: "600" },
+    payoutCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.md,
+      marginHorizontal: SPACING.base,
+      marginTop: SPACING.base,
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.base,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    payoutIconWrap: {
+      width: 40, height: 40, borderRadius: RADIUS.sm,
+      backgroundColor: colors.primaryMuted,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    payoutLabel: { color: colors.textMuted, fontSize: FONTS.xs, fontWeight: FONT_WEIGHT.semiBold },
+    payoutAmount: { color: colors.primary, fontSize: FONTS.lg, fontWeight: FONT_WEIGHT.bold, marginTop: 2 },
 
-  bookingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1A2535",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-    gap: 10,
-  },
-  bookingDot: { width: 8, height: 8, borderRadius: 4 },
-  bookingUser: { color: "#D1D5DB", fontSize: 13, fontWeight: "600" },
-  bookingSlot: { color: "#9CA3AF", fontSize: 11, marginTop: 2 },
-  bookingStatus: { fontSize: 11, fontWeight: "700", marginRight: 8 },
-  bookingAmt: { color: "#22C55E", fontWeight: "700", fontSize: 13 },
-
-  emptyBox: {
-    backgroundColor: "#1A2535",
-    borderRadius: 12,
-    padding: 24,
-    alignItems: "center",
-  },
-  emptyTxt: { color: "#6B7280", fontSize: 14 },
-});
+    bookingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.md,
+      marginHorizontal: SPACING.base,
+      marginBottom: SPACING.sm,
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.base,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    bookingTime: {
+      width: 64,
+      alignItems: 'center',
+    },
+    bookingTimeText: {
+      color: colors.primary,
+      fontSize: FONTS.md,
+      fontWeight: FONT_WEIGHT.bold,
+    },
+    bookingDateText: {
+      color: colors.textMuted,
+      fontSize: FONTS.xs,
+      marginTop: 2,
+    },
+    bookingName: {
+      color: colors.textPrimary,
+      fontSize: FONTS.sm,
+      fontWeight: FONT_WEIGHT.bold,
+    },
+    bookingPitch: {
+      color: colors.textMuted,
+      fontSize: FONTS.xs,
+      marginTop: 2,
+    },
+    bookingAmount: {
+      color: colors.textPrimary,
+      fontSize: FONTS.sm,
+      fontWeight: FONT_WEIGHT.bold,
+    },
+  });
+}

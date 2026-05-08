@@ -16,7 +16,14 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.kapash.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.761688069800-vta7qvt6ff3hj1mnmse93fqu286fh1pi"
+            ]
+          }
+        ]
       }
     },
     "android": {

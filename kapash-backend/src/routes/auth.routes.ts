@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   sendOtp, verifyOtp, refreshToken, logout,
-  socialLogin, sendPhoneLinkOtp, verifyPhoneLink,
+  socialLogin, sendPhoneLinkOtp, verifyPhoneLink, devLogin,
 } from '../controllers/auth.controller';
 import { authenticate, AuthRequest } from '../middleware/authenticate';
 import prisma from '../config/database';
@@ -15,6 +15,9 @@ router.post('/verify-otp',  verifyOtp);
 
 // Social auth
 router.post('/social',      socialLogin);
+
+// DEV ONLY — bypass for screen testing (returns 403 in production)
+router.post('/dev-login',   devLogin);
 
 // Phone linking (for social auth users — requires auth token)
 router.post('/link-phone/send',   authenticate, sendPhoneLinkOtp);

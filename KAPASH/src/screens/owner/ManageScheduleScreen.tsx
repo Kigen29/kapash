@@ -1,53 +1,31 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, SafeAreaView,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, FONTS, FONT_WEIGHT, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
+import { Calendar, DateData } from 'react-native-calendars';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../../context/ThemeContext';
+import { ColorPalette, FONTS, FONT_WEIGHT, RADIUS, SPACING } from '../../constants/theme';
 import { useOwnerPitches } from '../../hooks/useData';
 import { PITCHES, OWNER } from '../../services/api';
 
-const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  AVAILABLE:  { bg: COLORS.successBg,  text: COLORS.textGreen,  dot: COLORS.success },
-  available:  { bg: COLORS.successBg,  text: COLORS.textGreen,  dot: COLORS.success },
-  BOOKED:     { bg: COLORS.infoBg,     text: COLORS.info,       dot: COLORS.info },
-  booked:     { bg: COLORS.infoBg,     text: COLORS.info,       dot: COLORS.info },
-  HELD:       { bg: COLORS.infoBg,     text: COLORS.info,       dot: COLORS.info },
-  held:       { bg: COLORS.infoBg,     text: COLORS.info,       dot: COLORS.info },
-  UNAVAILABLE:{ bg: COLORS.errorBg,    text: COLORS.error,      dot: COLORS.error },
-  unavailable:{ bg: COLORS.errorBg,    text: COLORS.error,      dot: COLORS.error },
-  BLOCKED:    { bg: COLORS.errorBg,    text: COLORS.error,      dot: COLORS.error },
-  blocked:    { bg: COLORS.errorBg,    text: COLORS.error,      dot: COLORS.error },
-};
-
-function buildWeek(): { day: string; date: string; iso: string }[] {
-  const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-  const result = [];
-  const today = new Date();
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    result.push({
-      day: days[d.getDay()],
-      date: String(d.getDate()).padStart(2, '0'),
-      iso: d.toISOString().split('T')[0],
-    });
-  }
-  return result;
+function todayISO() {
+  return new Date().toISOString().split('T')[0];
 }
-
-const WEEK = buildWeek();
 
 interface Props { navigation: any; }
 
 export default function ManageScheduleScreen({ navigation }: Props) {
-  const [selectedDay, setSelectedDay]         = useState(0);
+  const { colors, resolvedScheme } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  const [selectedDate, setSelectedDate] = useState<string>(todayISO());
   const [selectedPitchIdx, setSelectedPitchIdx] = useState(0);
-  const [slots, setSlots]                     = useState<any[]>([]);
-  const [slotsLoading, setSlotsLoading]       = useState(false);
-  const [slotsError, setSlotsError]           = useState('');
-  const [togglingSlot, setTogglingSlot]       = useState<string | null>(null);
+  const [slots, setSlots] = useState<any[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState('');
+  const [togglingSlot, setTogglingSlot] = useState<string | null>(null);
 
   const { data: pitches, isLoading: pitchesLoading, error: pitchesError } = useOwnerPitches();
   const pitchList: any[] = Array.isArray(pitches) ? pitches : [];
@@ -58,7 +36,7 @@ export default function ManageScheduleScreen({ navigation }: Props) {
     setSlotsLoading(true);
     setSlotsError('');
     try {
-      const res = await PITCHES.getSlots(selectedPitch.id, WEEK[selectedDay].iso);
+      const res = await PITCHES.getSlots(selectedPitch.id, selectedDate);
       const raw = (res.data as any)?.data ?? res.data;
       const arr = raw?.slots ?? raw;
       setSlots(Array.isArray(arr) ? arr : []);
@@ -67,7 +45,7 @@ export default function ManageScheduleScreen({ navigation }: Props) {
     } finally {
       setSlotsLoading(false);
     }
-  }, [selectedPitch, selectedDay]);
+  }, [selectedPitch, selectedDate]);
 
   useEffect(() => { loadSlots(); }, [loadSlots]);
 
@@ -78,14 +56,14 @@ export default function ManageScheduleScreen({ navigation }: Props) {
     }
     const isAvailable = ['available', 'AVAILABLE'].includes(slot.status);
     const newStatus = isAvailable ? 'UNAVAILABLE' : 'AVAILABLE';
-    const label = isAvailable ? 'block' : 'unblock';
+    const verb = isAvailable ? 'Block' : 'Unblock';
     Alert.alert(
-      `${isAvailable ? 'Block' : 'Unblock'} slot?`,
-      `${slot.startTime} – ${slot.endTime} on ${WEEK[selectedDay].iso}`,
+      `${verb} slot?`,
+      `${slot.startTime} – ${slot.endTime} on ${selectedDate}`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: label.charAt(0).toUpperCase() + label.slice(1),
+          text: verb,
           style: isAvailable ? 'destructive' : 'default',
           onPress: async () => {
             setTogglingSlot(slot.id);
@@ -103,14 +81,36 @@ export default function ManageScheduleScreen({ navigation }: Props) {
     );
   };
 
-  const available = slots.filter(s => ['available', 'AVAILABLE'].includes(s.status)).length;
-  const booked    = slots.filter(s => ['booked', 'BOOKED', 'held', 'HELD'].includes(s.status)).length;
-  const blocked   = slots.filter(s => ['unavailable', 'UNAVAILABLE', 'blocked', 'BLOCKED'].includes(s.status)).length;
+  const stats = useMemo(() => {
+    const available = slots.filter(s => ['available', 'AVAILABLE'].includes(s.status)).length;
+    const booked    = slots.filter(s => ['booked', 'BOOKED', 'held', 'HELD'].includes(s.status)).length;
+    const blocked   = slots.filter(s => ['unavailable', 'UNAVAILABLE', 'blocked', 'BLOCKED'].includes(s.status)).length;
+    return { available, booked, blocked };
+  }, [slots]);
+
+  const calendarTheme = useMemo(() => ({
+    backgroundColor: colors.background,
+    calendarBackground: colors.surface,
+    textSectionTitleColor: colors.textMuted,
+    selectedDayBackgroundColor: colors.primary,
+    selectedDayTextColor: '#fff',
+    todayTextColor: colors.primary,
+    dayTextColor: colors.textPrimary,
+    textDisabledColor: colors.textMuted,
+    arrowColor: colors.primary,
+    monthTextColor: colors.textPrimary,
+    indicatorColor: colors.primary,
+    dotColor: colors.primary,
+    selectedDotColor: '#fff',
+    textDayFontWeight: '500' as const,
+    textMonthFontWeight: '700' as const,
+    textDayHeaderFontWeight: '600' as const,
+  }), [colors]);
 
   if (pitchesLoading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator color={COLORS.primary} size="large" />
+        <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
   }
@@ -118,18 +118,24 @@ export default function ManageScheduleScreen({ navigation }: Props) {
   if (pitchesError || pitchList.length === 0) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.backBtnText}>←</Text>
+        <SafeAreaView style={styles.headerSafe}>
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()} hitSlop={8}>
+              <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Schedule</Text>
+            <View style={{ width: 40 }} />
+          </View>
+        </SafeAreaView>
+        <View style={styles.emptyWrap}>
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="calendar-outline" size={36} color={colors.primary} />
+          </View>
+          <Text style={styles.emptyTitle}>No pitches yet</Text>
+          <Text style={styles.emptyText}>{pitchesError ?? 'Add a pitch first to start managing its schedule.'}</Text>
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.navigate('AddPitch')} activeOpacity={0.85}>
+            <Text style={styles.primaryBtnText}>Add a pitch</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Schedule</Text>
-          <View style={{ width: 40 }} />
-        </View>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-          <Text style={{ fontSize: 40, marginBottom: 12 }}>🏟️</Text>
-          <Text style={{ color: COLORS.textSecondary, fontSize: FONTS.base, textAlign: 'center' }}>
-            {pitchesError ?? 'No pitches found. Add a pitch first.'}
-          </Text>
         </View>
       </View>
     );
@@ -137,208 +143,317 @@ export default function ManageScheduleScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backBtnText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Schedule</Text>
-        <TouchableOpacity style={styles.refreshBtn} onPress={loadSlots}>
-          <Text style={styles.refreshBtnText}>↻</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Pitch selector (if multiple pitches) */}
-      {pitchList.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pitchSelectorWrap} contentContainerStyle={styles.pitchSelectorRow}>
-          {pitchList.map((p: any, i: number) => (
-            <TouchableOpacity
-              key={p.id}
-              style={[styles.pitchChip, selectedPitchIdx === i && styles.pitchChipActive]}
-              onPress={() => setSelectedPitchIdx(i)}
-            >
-              <Text style={[styles.pitchChipText, selectedPitchIdx === i && styles.pitchChipTextActive]} numberOfLines={1}>
-                {p.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
-
-      {/* Week selector */}
-      <View style={styles.weekContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weekRow}>
-          {WEEK.map((w, i) => (
-            <TouchableOpacity
-              key={i}
-              style={[styles.weekDay, selectedDay === i && styles.weekDayActive]}
-              onPress={() => setSelectedDay(i)}
-            >
-              <Text style={[styles.weekDayLabel, selectedDay === i && styles.weekDayLabelActive]}>{w.day}</Text>
-              <Text style={[styles.weekDayDate,  selectedDay === i && styles.weekDayDateActive]}>{w.date}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Summary strip */}
-      <View style={styles.summaryStrip}>
-        <View style={styles.summaryItem}>
-          <View style={[styles.summaryDot, { backgroundColor: COLORS.success }]} />
-          <Text style={styles.summaryText}>{available} Available</Text>
-        </View>
-        <View style={styles.summaryItem}>
-          <View style={[styles.summaryDot, { backgroundColor: COLORS.info }]} />
-          <Text style={styles.summaryText}>{booked} Booked</Text>
-        </View>
-        <View style={styles.summaryItem}>
-          <View style={[styles.summaryDot, { backgroundColor: COLORS.error }]} />
-          <Text style={styles.summaryText}>{blocked} Blocked</Text>
-        </View>
-      </View>
-
-      {/* Slot list */}
-      {slotsLoading ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator color={COLORS.primary} />
-        </View>
-      ) : slotsError ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-          <Text style={{ color: COLORS.textSecondary, fontSize: FONTS.sm, textAlign: 'center', marginBottom: 12 }}>{slotsError}</Text>
-          <TouchableOpacity onPress={loadSlots} style={{ backgroundColor: COLORS.primaryBg, paddingHorizontal: 20, paddingVertical: 8, borderRadius: RADIUS.full }}>
-            <Text style={{ color: COLORS.primary, fontWeight: FONT_WEIGHT.semiBold }}>Retry</Text>
+      <SafeAreaView style={styles.headerSafe}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()} hitSlop={8}>
+            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Schedule</Text>
+          <TouchableOpacity style={styles.iconBtn} onPress={loadSlots} hitSlop={8}>
+            <Ionicons name="refresh" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
-      ) : slots.length === 0 ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-          <Text style={{ fontSize: 36, marginBottom: 10 }}>📅</Text>
-          <Text style={{ color: COLORS.textSecondary, fontSize: FONTS.sm, textAlign: 'center' }}>
-            No slots available for this date
-          </Text>
+      </SafeAreaView>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: SPACING['3xl'] }}>
+        {/* Pitch selector */}
+        {pitchList.length > 1 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.pitchSelectorRow}
+          >
+            {pitchList.map((p: any, i: number) => {
+              const active = selectedPitchIdx === i;
+              return (
+                <TouchableOpacity
+                  key={p.id}
+                  style={[styles.pitchChip, active && styles.pitchChipActive]}
+                  onPress={() => setSelectedPitchIdx(i)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.pitchChipText, active && styles.pitchChipTextActive]} numberOfLines={1}>
+                    {p.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        {/* Calendar */}
+        <View style={styles.calendarWrap}>
+          <Calendar
+            key={resolvedScheme}
+            current={selectedDate}
+            minDate={todayISO()}
+            onDayPress={(d: DateData) => setSelectedDate(d.dateString)}
+            markedDates={{
+              [selectedDate]: { selected: true, selectedColor: colors.primary },
+            }}
+            theme={calendarTheme}
+            enableSwipeMonths
+          />
         </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.slotList} showsVerticalScrollIndicator={false}>
-          {slots.map((slot, i) => {
-            const status = (slot.status ?? 'available').toLowerCase();
-            const cfg = STATUS_COLORS[slot.status] ?? STATUS_COLORS[status] ?? STATUS_COLORS.available;
-            const isAvailable = status === 'available';
-            const isBookedOrHeld = status === 'booked' || status === 'held';
-            const isToggling = togglingSlot === slot.id;
 
-            return (
-              <TouchableOpacity
+        {/* Summary strip */}
+        <View style={styles.summaryStrip}>
+          <SummaryItem dot={colors.primary} label={`${stats.available} Available`} colors={colors} />
+          <SummaryItem dot={colors.info}    label={`${stats.booked} Booked`}    colors={colors} />
+          <SummaryItem dot={colors.error}   label={`${stats.blocked} Blocked`}  colors={colors} />
+        </View>
+
+        {/* Slot list */}
+        {slotsLoading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: SPACING.xl }} />
+        ) : slotsError ? (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyText}>{slotsError}</Text>
+            <TouchableOpacity onPress={loadSlots} style={styles.primaryBtn} activeOpacity={0.85}>
+              <Text style={styles.primaryBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : slots.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="time-outline" size={32} color={colors.primary} />
+            </View>
+            <Text style={styles.emptyTitle}>No slots</Text>
+            <Text style={styles.emptyText}>No slots are configured for this date yet.</Text>
+          </View>
+        ) : (
+          <View style={styles.slotList}>
+            {slots.map((slot, i) => (
+              <SlotCard
                 key={slot.id ?? i}
-                style={styles.slotCard}
-                activeOpacity={0.85}
+                slot={slot}
+                colors={colors}
+                styles={styles}
+                toggling={togglingSlot === slot.id}
                 onPress={() => handleToggleSlot(slot)}
-                disabled={isToggling || isBookedOrHeld}
-              >
-                {/* Time column */}
-                <View style={styles.slotTimeBlock}>
-                  <Text style={styles.slotTime}>{slot.startTime}</Text>
-                  <View style={styles.slotTimeLine} />
-                  <Text style={styles.slotTime}>{slot.endTime}</Text>
-                </View>
-
-                {/* Content */}
-                <View style={styles.slotContent}>
-                  {isAvailable ? (
-                    <View style={styles.availableBlock}>
-                      <View style={[styles.statusDot, { backgroundColor: cfg.dot }]} />
-                      <Text style={[styles.availableText, { color: cfg.text }]}>Available</Text>
-                      {slot.price && (
-                        <Text style={styles.slotPrice}>KES {slot.price.toLocaleString()}</Text>
-                      )}
-                      <View style={{ flex: 1 }} />
-                      <Text style={styles.blockHint}>Tap to block</Text>
-                    </View>
-                  ) : (
-                    <View style={[styles.bookedBlock, { backgroundColor: cfg.bg }]}>
-                      <View style={styles.bookedHeader}>
-                        {isToggling ? (
-                          <ActivityIndicator color={cfg.dot} size="small" />
-                        ) : (
-                          <View style={[styles.statusDot, { backgroundColor: cfg.dot }]} />
-                        )}
-                        <Text style={[styles.bookedStatus, { color: cfg.text }]}>
-                          {isBookedOrHeld ? 'Booked' : 'Blocked'}
-                        </Text>
-                      </View>
-                      {slot.booking?.user?.name && (
-                        <Text style={styles.bookedName}>{slot.booking.user.name}</Text>
-                      )}
-                      {!isBookedOrHeld && (
-                        <Text style={styles.blockHint}>Tap to unblock</Text>
-                      )}
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-          <View style={{ height: SPACING['3xl'] }} />
-        </ScrollView>
-      )}
-
-      {/* FAB — block a slot by selecting it */}
-      <TouchableOpacity style={styles.fab} onPress={loadSlots}>
-        <LinearGradient colors={[COLORS.primary, COLORS.primaryDark]} style={styles.fabGradient}>
-          <Text style={styles.fabIcon}>↻</Text>
-          <Text style={styles.fabText}>Refresh</Text>
-        </LinearGradient>
-      </TouchableOpacity>
+              />
+            ))}
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.base, paddingTop: 56, paddingBottom: SPACING.base, backgroundColor: COLORS.surface },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  backBtnText: { fontSize: FONTS.xl, color: COLORS.textPrimary, fontWeight: FONT_WEIGHT.semiBold },
-  headerTitle: { fontSize: FONTS.xl, fontWeight: FONT_WEIGHT.bold, color: COLORS.textPrimary },
-  refreshBtn: { width: 40, height: 40, borderRadius: RADIUS.md, backgroundColor: COLORS.primaryBg, alignItems: 'center', justifyContent: 'center' },
-  refreshBtnText: { fontSize: FONTS.xl, color: COLORS.primary, fontWeight: FONT_WEIGHT.bold },
+function SummaryItem({ dot, label, colors }: { dot: string; label: string; colors: ColorPalette }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.xs }}>
+      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dot }} />
+      <Text style={{ color: colors.textSecondary, fontSize: FONTS.xs, fontWeight: FONT_WEIGHT.semiBold }}>{label}</Text>
+    </View>
+  );
+}
 
-  pitchSelectorWrap: { backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  pitchSelectorRow: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, gap: SPACING.sm },
-  pitchChip: { paddingHorizontal: SPACING.md, paddingVertical: 7, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: COLORS.border },
-  pitchChipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryBg },
-  pitchChipText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONT_WEIGHT.medium },
-  pitchChipTextActive: { color: COLORS.primary, fontWeight: FONT_WEIGHT.bold },
+function SlotCard({
+  slot, colors, styles, toggling, onPress,
+}: {
+  slot: any;
+  colors: ColorPalette;
+  styles: ReturnType<typeof makeStyles>;
+  toggling: boolean;
+  onPress: () => void;
+}) {
+  const status = (slot.status ?? 'AVAILABLE').toUpperCase();
+  const isAvailable = status === 'AVAILABLE';
+  const isBookedOrHeld = status === 'BOOKED' || status === 'HELD';
 
-  weekContainer: { backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  weekRow: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.md, gap: SPACING.sm },
-  weekDay: { width: 56, height: 72, borderRadius: RADIUS.xl, borderWidth: 1.5, borderColor: COLORS.borderLight, alignItems: 'center', justifyContent: 'center', gap: SPACING.xs },
-  weekDayActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryBg },
-  weekDayLabel: { fontSize: FONTS.xs, fontWeight: FONT_WEIGHT.semiBold, color: COLORS.textMuted, letterSpacing: 0.5 },
-  weekDayLabelActive: { color: COLORS.primary },
-  weekDayDate: { fontSize: FONTS['2xl'], fontWeight: FONT_WEIGHT.bold, color: COLORS.textPrimary },
-  weekDayDateActive: { color: COLORS.primary },
+  const fg =
+    status === 'BOOKED' || status === 'HELD' ? colors.info :
+    status === 'AVAILABLE' ? colors.primary :
+    colors.error;
+  const bg =
+    status === 'BOOKED' || status === 'HELD' ? 'rgba(59,130,246,0.12)' :
+    status === 'AVAILABLE' ? colors.primaryMuted :
+    'rgba(239,68,68,0.12)';
 
-  summaryStrip: { flexDirection: 'row', paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, backgroundColor: COLORS.surface, gap: SPACING.xl, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  summaryItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  summaryDot: { width: 8, height: 8, borderRadius: RADIUS.full },
-  summaryText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONT_WEIGHT.medium },
+  return (
+    <TouchableOpacity
+      style={styles.slotCard}
+      activeOpacity={0.85}
+      onPress={onPress}
+      disabled={toggling || isBookedOrHeld}
+    >
+      <View style={styles.slotTimeBlock}>
+        <Text style={styles.slotTime}>{slot.startTime}</Text>
+        <View style={styles.slotTimeLine} />
+        <Text style={styles.slotTime}>{slot.endTime}</Text>
+      </View>
+      <View style={[styles.slotBody, { backgroundColor: bg }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.xs }}>
+          {toggling ? (
+            <ActivityIndicator color={fg} size="small" />
+          ) : (
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: fg }} />
+          )}
+          <Text style={[styles.slotStatus, { color: fg }]}>
+            {isAvailable ? 'Available' : isBookedOrHeld ? 'Booked' : 'Blocked'}
+          </Text>
+        </View>
+        {slot.booking?.user?.name && (
+          <Text style={styles.slotMeta}>{slot.booking.user.name}</Text>
+        )}
+        {slot.price && isAvailable && (
+          <Text style={styles.slotPrice}>KSh {slot.price.toLocaleString()}</Text>
+        )}
+        <Text style={styles.slotHint}>
+          {isBookedOrHeld ? 'Locked by booking' : isAvailable ? 'Tap to block' : 'Tap to unblock'}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
 
-  slotList: { paddingHorizontal: SPACING.base, paddingTop: SPACING.base, gap: SPACING.sm },
-  slotCard: { flexDirection: 'row', gap: SPACING.md, alignItems: 'stretch', minHeight: 70 },
-  slotTimeBlock: { width: 58, alignItems: 'center', paddingTop: 4 },
-  slotTime: { fontSize: FONTS.xs, color: COLORS.textMuted, fontWeight: FONT_WEIGHT.medium },
-  slotTimeLine: { flex: 1, width: 1, backgroundColor: COLORS.border, marginVertical: 4 },
-  slotContent: { flex: 1 },
-  availableBlock: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, paddingHorizontal: SPACING.base, paddingVertical: SPACING.md, borderWidth: 1.5, borderStyle: 'dashed', borderColor: COLORS.border },
-  statusDot: { width: 8, height: 8, borderRadius: RADIUS.full, flexShrink: 0 },
-  availableText: { fontSize: FONTS.sm, fontWeight: FONT_WEIGHT.medium },
-  slotPrice: { fontSize: FONTS.xs, color: COLORS.textMuted },
-  blockHint: { fontSize: FONTS.xs, color: COLORS.textMuted, fontStyle: 'italic' },
-  bookedBlock: { flex: 1, borderRadius: RADIUS.xl, paddingHorizontal: SPACING.base, paddingVertical: SPACING.md, gap: 6 },
-  bookedHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  bookedStatus: { fontSize: FONTS.xs, fontWeight: FONT_WEIGHT.bold, letterSpacing: 0.3 },
-  bookedName: { fontSize: FONTS.base, fontWeight: FONT_WEIGHT.semiBold, color: COLORS.textPrimary },
+function makeStyles(colors: ColorPalette) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    headerSafe: { backgroundColor: colors.background },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: SPACING.base,
+      paddingVertical: SPACING.md,
+    },
+    iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { fontSize: FONTS.lg, fontWeight: FONT_WEIGHT.bold, color: colors.textPrimary },
 
-  fab: { position: 'absolute', bottom: SPACING.xl, right: SPACING.base, borderRadius: RADIUS.full, overflow: 'hidden', ...SHADOWS.green },
-  fabGradient: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md },
-  fabIcon: { fontSize: FONTS.lg, color: COLORS.white, fontWeight: FONT_WEIGHT.bold },
-  fabText: { fontSize: FONTS.base, fontWeight: FONT_WEIGHT.bold, color: COLORS.white },
-});
+    pitchSelectorRow: {
+      paddingHorizontal: SPACING.base,
+      paddingVertical: SPACING.sm,
+      gap: SPACING.sm,
+    },
+    pitchChip: {
+      paddingHorizontal: SPACING.base,
+      height: 36,
+      borderRadius: RADIUS.full,
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    pitchChipActive: {
+      backgroundColor: colors.primaryMuted,
+      borderColor: colors.primary,
+    },
+    pitchChipText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sm,
+      fontWeight: FONT_WEIGHT.semiBold,
+      maxWidth: 180,
+    },
+    pitchChipTextActive: { color: colors.primary },
+
+    calendarWrap: {
+      marginHorizontal: SPACING.base,
+      borderRadius: RADIUS.lg,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+
+    summaryStrip: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: SPACING.base,
+      paddingVertical: SPACING.md,
+      marginTop: SPACING.sm,
+    },
+
+    slotList: { paddingHorizontal: SPACING.base, gap: SPACING.sm, marginTop: SPACING.xs },
+
+    slotCard: {
+      flexDirection: 'row',
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden',
+    },
+    slotTimeBlock: {
+      width: 84,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRightWidth: StyleSheet.hairlineWidth,
+      borderRightColor: colors.border,
+    },
+    slotTime: {
+      color: colors.textPrimary,
+      fontSize: FONTS.sm,
+      fontWeight: FONT_WEIGHT.bold,
+    },
+    slotTimeLine: {
+      width: 2,
+      height: 8,
+      borderRadius: 1,
+      backgroundColor: colors.border,
+      marginVertical: 4,
+    },
+    slotBody: {
+      flex: 1,
+      padding: SPACING.md,
+      gap: 4,
+    },
+    slotStatus: {
+      fontSize: FONTS.sm,
+      fontWeight: FONT_WEIGHT.bold,
+    },
+    slotMeta: {
+      color: colors.textSecondary,
+      fontSize: FONTS.xs,
+    },
+    slotPrice: {
+      color: colors.primary,
+      fontSize: FONTS.sm,
+      fontWeight: FONT_WEIGHT.bold,
+    },
+    slotHint: {
+      color: colors.textMuted,
+      fontSize: FONTS.xs,
+      fontStyle: 'italic',
+    },
+
+    emptyWrap: {
+      alignItems: 'center',
+      paddingVertical: SPACING['3xl'],
+      paddingHorizontal: SPACING.xl,
+      gap: SPACING.sm,
+    },
+    emptyIconWrap: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: colors.primaryMuted,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: SPACING.sm,
+    },
+    emptyTitle: {
+      color: colors.textPrimary,
+      fontSize: FONTS.lg,
+      fontWeight: FONT_WEIGHT.bold,
+    },
+    emptyText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sm,
+      textAlign: 'center',
+    },
+    primaryBtn: {
+      marginTop: SPACING.md,
+      backgroundColor: colors.primary,
+      paddingHorizontal: SPACING.xl,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.md,
+    },
+    primaryBtnText: {
+      color: '#fff',
+      fontWeight: FONT_WEIGHT.bold,
+      fontSize: FONTS.sm,
+    },
+  });
+}
