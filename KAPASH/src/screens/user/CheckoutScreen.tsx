@@ -184,13 +184,13 @@ export default function CheckoutScreen({ route, navigation }: any) {
                 status === 'success' && s.statusBoxSuccess,
               ]}>
                 {isBusy && <ActivityIndicator color={colors.primary} size="small" style={{ marginRight: 10 }} />}
-                {status === 'awaiting_pin' && <Ionicons name="phone-portrait-outline" size={18} color="#F59E0B" style={{ marginRight: 8 }} />}
+                {status === 'awaiting_pin' && <Ionicons name="phone-portrait-outline" size={18} color={colors.pending} style={{ marginRight: 8 }} />}
                 {status === 'failed' && <Ionicons name="alert-circle-outline" size={18} color={colors.error} style={{ marginRight: 8 }} />}
                 {status === 'success' && <Ionicons name="checkmark-circle" size={18} color={colors.primary} style={{ marginRight: 8 }} />}
                 <Text style={[
                   s.statusTxt,
                   status === 'failed' && { color: colors.error },
-                  status === 'awaiting_pin' && { color: '#F59E0B' },
+                  status === 'awaiting_pin' && { color: colors.pending },
                   status === 'success' && { color: colors.primary },
                 ]}>
                   {statusMsg}
@@ -384,7 +384,7 @@ function makeStyles(colors: ColorPalette) {
     },
     statusBoxWaiting: {
       backgroundColor: 'rgba(245,158,11,0.1)',
-      borderColor: '#F59E0B',
+      borderColor: colors.pending,
     },
     statusBoxSuccess: {
       backgroundColor: colors.primaryMuted,

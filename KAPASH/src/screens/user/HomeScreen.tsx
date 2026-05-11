@@ -641,7 +641,7 @@ function makeStyles(colors: ColorPalette) {
     ...SHADOWS.green,
   },
   retryText: {
-    color: colors.textInverse,
+    color: '#fff',
     fontWeight: FONT_WEIGHT.bold,
     fontSize: FONTS.sm,
   },
