@@ -359,7 +359,15 @@ async function seedDevData(userId: string, role: 'PLAYER' | 'OWNER') {
         verifiedAt: new Date(),
         avgRating: 4.6,
         reviewCount: 28,
-        operatingHours: { mon: { open: '06:00', close: '22:00' } },
+        operatingHours: {
+          monday:    { open: '06:00', close: '22:00' },
+          tuesday:   { open: '06:00', close: '22:00' },
+          wednesday: { open: '06:00', close: '22:00' },
+          thursday:  { open: '06:00', close: '22:00' },
+          friday:    { open: '06:00', close: '22:00' },
+          saturday:  { open: '06:00', close: '22:00' },
+          sunday:    { open: '06:00', close: '22:00' },
+        },
       },
     });
     await prisma.pitchImage.create({

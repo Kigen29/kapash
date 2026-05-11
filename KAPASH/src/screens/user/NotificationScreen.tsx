@@ -1,55 +1,60 @@
-/**
- * NotificationsScreen
- * Place at: src/screens/user/NotificationsScreen.tsx
- */
-
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useNotifications } from '../../hooks/useData';
+import { useTheme } from '../../context/ThemeContext';
+import { ColorPalette, FONTS, FONT_WEIGHT, RADIUS, SPACING } from '../../constants/theme';
 
-const TYPE_ICONS: Record<string, string> = {
-  BOOKING_CONFIRMED: '🎉',
-  BOOKING_CANCELLED: '❌',
-  PAYMENT_RECEIVED:  '💰',
-  PAYMENT_FAILED:    '⚠️',
-  PAYOUT_SENT:       '💸',
-  SLOT_REMINDER:     '⏰',
-  REVIEW_REQUEST:    '⭐',
-  SYSTEM:            '📢',
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+const TYPE_ICONS: Record<string, IoniconName> = {
+  BOOKING_CONFIRMED: 'checkmark-circle-outline',
+  BOOKING_CANCELLED: 'close-circle-outline',
+  PAYMENT_RECEIVED:  'cash-outline',
+  PAYMENT_FAILED:    'alert-circle-outline',
+  PAYOUT_SENT:       'card-outline',
+  SLOT_REMINDER:     'time-outline',
+  REVIEW_REQUEST:    'star-outline',
+  SYSTEM:            'megaphone-outline',
 };
 
-const TYPE_COLORS: Record<string, string> = {
-  BOOKING_CONFIRMED: '#22C55E',
-  BOOKING_CANCELLED: '#EF4444',
-  PAYMENT_RECEIVED:  '#22C55E',
-  PAYMENT_FAILED:    '#EF4444',
-  PAYOUT_SENT:       '#22C55E',
-  SLOT_REMINDER:     '#F59E0B',
-  REVIEW_REQUEST:    '#F59E0B',
-  SYSTEM:            '#6B7280',
-};
+function getTypeColor(type: string, c: ColorPalette) {
+  switch (type) {
+    case 'BOOKING_CONFIRMED':
+    case 'PAYMENT_RECEIVED':
+    case 'PAYOUT_SENT':       return c.primary;
+    case 'BOOKING_CANCELLED':
+    case 'PAYMENT_FAILED':    return c.error;
+    case 'SLOT_REMINDER':
+    case 'REVIEW_REQUEST':    return c.pending;
+    default:                  return c.textMuted;
+  }
+}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1)  return 'just now';
+  if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24)  return `${hrs}h ago`;
+  if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
-  if (days < 7)  return `${days}d ago`;
+  if (days < 7) return `${days}d ago`;
   return new Date(dateStr).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' });
 }
 
 export default function NotificationsScreen({ navigation }: any) {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
   const [refreshing, setRefreshing] = useState(false);
   const { data, isLoading, error, refetch, markRead, markAllRead } = useNotifications();
   const notifications: any[] = Array.isArray(data) ? data : [];
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -59,10 +64,10 @@ export default function NotificationsScreen({ navigation }: any) {
 
   return (
     <View style={s.container}>
-      <SafeAreaView>
+      <SafeAreaView edges={['top']} style={s.headerSafe}>
         <View style={s.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-            <Text style={s.backArrow}>←</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={s.iconBtn} hitSlop={8}>
+            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <View style={s.headerCenter}>
             <Text style={s.title}>Notifications</Text>
@@ -71,7 +76,7 @@ export default function NotificationsScreen({ navigation }: any) {
             )}
           </View>
           {unreadCount > 0 ? (
-            <TouchableOpacity onPress={markAllRead} style={s.markAllBtn}>
+            <TouchableOpacity onPress={markAllRead} hitSlop={8}>
               <Text style={s.markAllText}>Mark all read</Text>
             </TouchableOpacity>
           ) : (
@@ -81,32 +86,37 @@ export default function NotificationsScreen({ navigation }: any) {
       </SafeAreaView>
 
       {isLoading ? (
-        <ActivityIndicator color="#22C55E" style={{ marginTop: 60 }} />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 60 }} />
       ) : error ? (
         <View style={s.center}>
+          <Ionicons name="cloud-offline-outline" size={44} color={colors.textMuted} />
           <Text style={s.errorText}>Failed to load notifications</Text>
-          <TouchableOpacity style={s.retryBtn} onPress={refetch}>
-            <Text style={s.retryText}>Retry</Text>
+          <TouchableOpacity style={s.primaryBtn} onPress={refetch} activeOpacity={0.85}>
+            <Text style={s.primaryBtnText}>Retry</Text>
           </TouchableOpacity>
         </View>
       ) : notifications.length === 0 ? (
         <View style={s.center}>
-          <Text style={s.emptyIcon}>🔔</Text>
+          <View style={s.emptyIconWrap}>
+            <Ionicons name="notifications-outline" size={36} color={colors.primary} />
+          </View>
           <Text style={s.emptyTitle}>No Notifications Yet</Text>
-          <Text style={s.emptySubtitle}>You'll see booking updates and alerts here</Text>
+          <Text style={s.emptySubtitle}>You'll see booking updates and alerts here.</Text>
         </View>
       ) : (
         <FlatList
           data={notifications}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          keyExtractor={item => item.id}
+          contentContainerStyle={{ paddingBottom: SPACING['3xl'] }}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#22C55E" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
           }
           renderItem={({ item }) => (
             <NotificationRow
               notification={item}
+              colors={colors}
+              styles={s}
               onPress={() => {
                 if (!item.isRead) markRead(item.id);
                 if (item.data?.bookingId) {
@@ -121,53 +131,88 @@ export default function NotificationsScreen({ navigation }: any) {
   );
 }
 
-function NotificationRow({ notification: n, onPress }: { notification: any; onPress: () => void }) {
-  const icon  = TYPE_ICONS[n.type]  || '📢';
-  const color = TYPE_COLORS[n.type] || '#6B7280';
+function NotificationRow({
+  notification: n, colors, styles, onPress,
+}: {
+  notification: any;
+  colors: ColorPalette;
+  styles: ReturnType<typeof makeStyles>;
+  onPress: () => void;
+}) {
+  const icon  = TYPE_ICONS[n.type] || 'megaphone-outline';
+  const color = getTypeColor(n.type, colors);
 
   return (
-    <TouchableOpacity
-      style={[s.row, !n.isRead && s.rowUnread]}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      {!n.isRead && <View style={s.unreadDot} />}
-      <View style={[s.iconWrap, { backgroundColor: color + '22' }]}>
-        <Text style={s.icon}>{icon}</Text>
+    <TouchableOpacity style={[styles.row, !n.isRead && styles.rowUnread]} onPress={onPress} activeOpacity={0.85}>
+      {!n.isRead && <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />}
+      <View style={[styles.iconWrap, { backgroundColor: `${color}1A` }]}>
+        <Ionicons name={icon} size={18} color={color} />
       </View>
-      <View style={s.rowContent}>
-        <Text style={s.notifTitle} numberOfLines={1}>{n.title}</Text>
-        <Text style={s.notifBody}  numberOfLines={2}>{n.body}</Text>
-        <Text style={s.notifTime}>{timeAgo(n.createdAt)}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.notifTitle} numberOfLines={1}>{n.title}</Text>
+        <Text style={styles.notifBody}  numberOfLines={2}>{n.body}</Text>
+        <Text style={styles.notifTime}>{timeAgo(n.createdAt)}</Text>
       </View>
     </TouchableOpacity>
   );
 }
 
-const s = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: '#0F1923' },
-  header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1A2535' },
-  backBtn:      { width: 36, height: 36, justifyContent: 'center' },
-  backArrow:    { fontSize: 22, color: '#fff' },
-  headerCenter: { alignItems: 'center' },
-  title:        { fontSize: 18, fontWeight: '700', color: '#fff' },
-  unreadLabel:  { fontSize: 11, color: '#22C55E', marginTop: 2 },
-  markAllBtn:   { paddingHorizontal: 8, paddingVertical: 4 },
-  markAllText:  { color: '#22C55E', fontSize: 12, fontWeight: '600' },
-  center:       { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  errorText:    { color: '#EF4444', fontSize: 15, marginBottom: 12 },
-  retryBtn:     { backgroundColor: '#1A2535', paddingHorizontal: 24, paddingVertical: 10, borderRadius: 10 },
-  retryText:    { color: '#22C55E', fontWeight: '600' },
-  emptyIcon:    { fontSize: 48, marginBottom: 16 },
-  emptyTitle:   { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 8 },
-  emptySubtitle:{ color: '#6B7280', fontSize: 14, textAlign: 'center' },
-  row:          { flexDirection: 'row', alignItems: 'flex-start', padding: 16, borderBottomWidth: 1, borderBottomColor: '#1A2535', position: 'relative' },
-  rowUnread:    { backgroundColor: '#1A2535' },
-  unreadDot:    { position: 'absolute', top: 18, left: 6, width: 6, height: 6, borderRadius: 3, backgroundColor: '#22C55E' },
-  iconWrap:     { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  icon:         { fontSize: 20 },
-  rowContent:   { flex: 1 },
-  notifTitle:   { color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 3 },
-  notifBody:    { color: '#9CA3AF', fontSize: 13, lineHeight: 18, marginBottom: 6 },
-  notifTime:    { color: '#6B7280', fontSize: 11 },
-});
+function makeStyles(colors: ColorPalette) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    headerSafe: { backgroundColor: colors.background, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: SPACING.base,
+      paddingVertical: SPACING.md,
+    },
+    iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    headerCenter: { alignItems: 'center' },
+    title: { fontSize: FONTS.lg, fontWeight: FONT_WEIGHT.bold, color: colors.textPrimary },
+    unreadLabel: { fontSize: FONTS.xs, color: colors.primary, marginTop: 2 },
+    markAllText: { color: colors.primary, fontSize: FONTS.sm, fontWeight: FONT_WEIGHT.semiBold },
+
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl, gap: SPACING.md },
+    errorText: { color: colors.textMuted, fontSize: FONTS.sm },
+    primaryBtn: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: SPACING.xl,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.md,
+    },
+    primaryBtnText: { color: '#fff', fontWeight: FONT_WEIGHT.bold, fontSize: FONTS.sm },
+
+    emptyIconWrap: {
+      width: 72, height: 72, borderRadius: 36,
+      backgroundColor: colors.primaryMuted,
+      justifyContent: 'center', alignItems: 'center',
+      marginBottom: SPACING.sm,
+    },
+    emptyTitle: { color: colors.textPrimary, fontSize: FONTS.lg, fontWeight: FONT_WEIGHT.bold },
+    emptySubtitle: { color: colors.textMuted, fontSize: FONTS.sm, textAlign: 'center' },
+
+    row: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      padding: SPACING.base,
+      gap: SPACING.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    rowUnread: { backgroundColor: colors.surface },
+    unreadDot: {
+      position: 'absolute', top: 22, left: 4,
+      width: 6, height: 6, borderRadius: 3,
+    },
+    iconWrap: {
+      width: 40, height: 40, borderRadius: RADIUS.sm,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    notifTitle: { color: colors.textPrimary, fontSize: FONTS.sm, fontWeight: FONT_WEIGHT.bold, marginBottom: 3 },
+    notifBody: { color: colors.textSecondary, fontSize: FONTS.sm, lineHeight: 18, marginBottom: 6 },
+    notifTime: { color: colors.textMuted, fontSize: FONTS.xs },
+  });
+}

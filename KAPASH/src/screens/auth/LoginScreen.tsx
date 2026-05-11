@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Image,
+  ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -335,14 +335,20 @@ export default function LoginScreen({ navigation }: any) {
                   <View style={s.devBypassRow}>
                     <TouchableOpacity
                       style={[s.devBypassBtn, { backgroundColor: colors.primary }]}
-                      onPress={() => devLogin('PLAYER')}
+                      onPress={async () => {
+                        try { await devLogin('PLAYER'); }
+                        catch (e: any) { Alert.alert('Dev login failed', e?.message || 'Unknown error. Is the backend running?'); }
+                      }}
                       activeOpacity={0.85}
                     >
                       <Text style={s.devBypassTxt}>Enter as Player</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[s.devBypassBtn, { backgroundColor: '#3B82F6' }]}
-                      onPress={() => devLogin('OWNER')}
+                      onPress={async () => {
+                        try { await devLogin('OWNER'); }
+                        catch (e: any) { Alert.alert('Dev login failed', e?.message || 'Unknown error. Is the backend running?'); }
+                      }}
                       activeOpacity={0.85}
                     >
                       <Text style={s.devBypassTxt}>Enter as Owner</Text>

@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { useFeaturedPitches, usePitches } from '../../hooks/useData';
+import { useFeaturedPitches, useNotifications, usePitches } from '../../hooks/useData';
 import { ColorPalette, FONTS, FONT_WEIGHT, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 
 const PITCH_TYPES = ['All', 'Football', 'Basketball', 'Tennis', 'Futsal', 'Rugby'];
@@ -47,6 +47,8 @@ export default function HomeScreen({ navigation }: any) {
     search: debouncedSearch || undefined,
     pitchType: activeType === 'All' ? undefined : activeType.toUpperCase(),
   });
+  const { data: notifData } = useNotifications();
+  const unreadCount = Array.isArray(notifData) ? notifData.filter((n: any) => !n.isRead).length : 0;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -72,7 +74,11 @@ export default function HomeScreen({ navigation }: any) {
             activeOpacity={0.8}
           >
             <Ionicons name="notifications-outline" size={20} color={colors.textPrimary} />
-            <View style={s.notifDot} />
+            {unreadCount > 0 && (
+              <View style={s.notifDot}>
+                {unreadCount > 1 && <Text style={s.notifDotText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>}
+              </View>
+            )}
           </TouchableOpacity>
           <TouchableOpacity style={s.avatar} onPress={() => navigation.navigate('Profile')} activeOpacity={0.8}>
             {user?.avatar ? (
@@ -342,23 +348,32 @@ function makeStyles(colors: ColorPalette) {
   userName: {
     fontSize: FONTS['2xl'],
     fontWeight: FONT_WEIGHT.bold,
-    color: colors.textInverse,
+    color: colors.textPrimary,
     marginTop: 2,
   },
 
   notifBtn: {
     width: 40, height: 40,
-    backgroundColor: colors.darkCard,
+    backgroundColor: colors.surface,
     borderRadius: RADIUS.md,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: colors.border,
   },
   notifIcon: { fontSize: 18 },
   notifDot: {
-    position: 'absolute', top: 9, right: 10,
-    width: 8, height: 8, borderRadius: 4,
+    position: 'absolute',
+    top: 6, right: 6,
+    minWidth: 12, height: 12, borderRadius: 6,
+    paddingHorizontal: 3,
     backgroundColor: colors.primary,
-    borderWidth: 1.5, borderColor: colors.darkCard,
+    borderWidth: 1.5, borderColor: colors.surface,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  notifDotText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: FONT_WEIGHT.bold,
+    lineHeight: 9,
   },
 
   avatar: {
@@ -384,26 +399,26 @@ function makeStyles(colors: ColorPalette) {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.darkCard,
+    backgroundColor: colors.surface,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
     height: 48,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: colors.border,
   },
   searchIcon: { fontSize: 15, marginRight: SPACING.sm },
   searchInput: {
     flex: 1,
-    color: colors.textInverse,
+    color: colors.textPrimary,
     fontSize: FONTS.base,
   },
   clearText: { color: colors.textMuted, fontSize: 14, paddingHorizontal: 4 },
   filterBtn: {
     width: 48, height: 48,
-    backgroundColor: colors.darkCard,
+    backgroundColor: colors.surface,
     borderRadius: RADIUS.md,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: colors.border,
   },
   filterIcon: { fontSize: 20 },
 
@@ -413,9 +428,9 @@ function makeStyles(colors: ColorPalette) {
     height: 36,
     borderRadius: RADIUS.full,
     justifyContent: 'center',
-    backgroundColor: colors.darkCard,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.border,
   },
   chipActive: {
     backgroundColor: colors.primaryMuted,
@@ -439,7 +454,7 @@ function makeStyles(colors: ColorPalette) {
   sectionTitle: {
     fontSize: FONTS.lg,
     fontWeight: FONT_WEIGHT.bold,
-    color: colors.textInverse,
+    color: colors.textPrimary,
     letterSpacing: 0.2,
   },
   sectionMeta: {
@@ -459,7 +474,7 @@ function makeStyles(colors: ColorPalette) {
     height: 180,
     borderRadius: RADIUS.lg,
     overflow: 'hidden',
-    backgroundColor: colors.darkCard,
+    backgroundColor: colors.surface,
   },
   featImg: { width: '100%', height: '100%', position: 'absolute' },
   featGrad: { ...StyleSheet.absoluteFillObject },
@@ -507,13 +522,13 @@ function makeStyles(colors: ColorPalette) {
   // Pitch list cards
   pitchCard: {
     flexDirection: 'row',
-    backgroundColor: colors.darkCard,
+    backgroundColor: colors.surface,
     borderRadius: RADIUS.lg,
     overflow: 'hidden',
     marginHorizontal: SPACING.base,
     marginBottom: SPACING.md,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.04)',
+    borderColor: colors.border,
   },
   pitchImg: { width: 116, height: 130 },
   pitchInfo: {
@@ -531,7 +546,7 @@ function makeStyles(colors: ColorPalette) {
     flex: 1,
     fontSize: FONTS.base,
     fontWeight: FONT_WEIGHT.bold,
-    color: colors.textInverse,
+    color: colors.textPrimary,
   },
   pitchLoc: {
     fontSize: FONTS.xs,
@@ -605,7 +620,7 @@ function makeStyles(colors: ColorPalette) {
     marginTop: SPACING.md,
   },
   emptyTitle: {
-    color: colors.textInverse,
+    color: colors.textPrimary,
     fontSize: FONTS.md,
     fontWeight: FONT_WEIGHT.bold,
     marginTop: SPACING.md,

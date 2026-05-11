@@ -100,6 +100,12 @@ export type RootStackParamList = {
   Notifications: undefined;
   EditProfile: undefined;
   Reviews: undefined;
+  ManagePitches: undefined;
+  AddPitch: undefined;
+  EditPitch: { pitchId: string };
+  OwnerPayouts: undefined;
+  OwnerBookings: undefined;
+  OwnerSettings: undefined;
 };
 
 export type UserTabParamList = {

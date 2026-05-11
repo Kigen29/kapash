@@ -25,12 +25,13 @@ interface MenuItem {
 }
 
 const MENU: MenuItem[] = [
-  { icon: 'business-outline',  title: 'Manage Pitches',  subtitle: 'Add or edit pitch details, photos',  section: 'Venue',   nav: 'AddPitch' },
-  { icon: 'time-outline',      title: 'Pricing & Slots', subtitle: 'Set hourly rates per pitch',        section: 'Venue',   nav: 'Schedule' },
-  { icon: 'card-outline',      title: 'Withdrawal',      subtitle: 'M-Pesa payout settings',            section: 'Finance', action: 'payout', badge: 'M-PESA' },
-  { icon: 'stats-chart-outline', title: 'Full Analytics', subtitle: 'Detailed revenue & booking reports', section: 'Finance', nav: 'Analytics' },
-  { icon: 'settings-outline',  title: 'Account Settings', subtitle: 'Profile, password, notifications', section: 'Settings' },
-  { icon: 'help-circle-outline', title: 'Help Center',   subtitle: 'Get support from our team',         section: 'Settings', action: 'help' },
+  { icon: 'business-outline',    title: 'Manage Pitches',   subtitle: 'Add, edit, or delete pitches',         section: 'Venue',   nav: 'ManagePitches' },
+  { icon: 'time-outline',        title: 'Schedule & Slots', subtitle: 'Block, unblock, and review slots',     section: 'Venue',   nav: 'Schedule' },
+  { icon: 'calendar-outline',    title: 'All Bookings',     subtitle: 'View bookings across your pitches',    section: 'Venue',   nav: 'OwnerBookings' },
+  { icon: 'card-outline',        title: 'Payouts',          subtitle: 'M-Pesa payout history',                section: 'Finance', nav: 'OwnerPayouts', badge: 'M-PESA' },
+  { icon: 'stats-chart-outline', title: 'Full Analytics',   subtitle: 'Detailed revenue & booking reports',   section: 'Finance', nav: 'Analytics' },
+  { icon: 'settings-outline',    title: 'Account Settings', subtitle: 'Profile, appearance, notifications',   section: 'Settings', nav: 'OwnerSettings' },
+  { icon: 'help-circle-outline', title: 'Help Center',      subtitle: 'Get support from our team',            section: 'Settings', action: 'help' },
 ];
 
 interface Props { navigation: any; }

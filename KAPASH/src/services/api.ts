@@ -178,6 +178,7 @@ export const PITCHES = {
   getReviews:   (pitchId: string)               => apiFetch(`/reviews/pitches/${pitchId}`),
   create:       (body: any)                     => apiFetch('/pitches', { method: 'POST', body }),
   update:       (id: string, body: any)         => apiFetch(`/pitches/${id}`, { method: 'PATCH', body }),
+  delete:       (id: string)                    => apiFetch(`/pitches/${id}`, { method: 'DELETE' }),
   uploadImages: (pitchId: string, fd: FormData) => apiUpload(`/pitches/${pitchId}/images`, fd),
 };
 
@@ -233,6 +234,7 @@ export const OWNER = {
     return apiFetch(`/owner/bookings?${qs.toString()}`);
   },
   getPitches:    ()                           => apiFetch('/owner/pitches'),
+  getPayouts:    ()                           => apiFetch('/owner/payouts'),
   updateSlot:    (slotId: string, body: { status: string }) =>
     apiFetch(`/owner/slots/${slotId}`, { method: 'PATCH', body }),
   requestPayout: (amount: number)             =>

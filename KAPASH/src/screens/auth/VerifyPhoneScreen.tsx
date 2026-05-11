@@ -1,16 +1,14 @@
-/**
- * VerifyPhoneScreen
- * Used for: new phone OTP users AND social auth users linking their phone
- */
-
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { AUTH } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import { ColorPalette, FONTS, FONT_WEIGHT, RADIUS, SPACING } from '../../constants/theme';
 
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
@@ -18,15 +16,22 @@ const RESEND_SECONDS = 60;
 export default function VerifyPhoneScreen({ route, navigation }: any) {
   const { phone: routePhone, isLinking } = route.params || {};
   const { handleLoginSuccess, handlePhoneVerified } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
 
   const [phone, setPhone] = useState(routePhone || '');
   const [otp, setOtp] = useState(Array(OTP_LENGTH).fill(''));
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
   const [countdown, setCountdown] = useState(RESEND_SECONDS);
-  const [otpSent, setOtpSent] = useState(!!routePhone); // Auto-sent if phone passed in
+  const [otpSent, setOtpSent] = useState(!!routePhone);
   const [devOtp, setDevOtp] = useState('');
   const inputRefs = useRef<(TextInput | null)[]>([]);
+
+  // For phone-link flow without preset phone
+  const [newPhone, setNewPhone] = useState('');
+  const [sendingNew, setSendingNew] = useState(false);
+  const [newPhoneErr, setNewPhoneErr] = useState('');
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -34,7 +39,6 @@ export default function VerifyPhoneScreen({ route, navigation }: any) {
     return () => clearTimeout(t);
   }, [countdown]);
 
-  // If this is a phone-link flow (social auth), send link OTP instead
   async function sendOtp(targetPhone: string) {
     try {
       if (isLinking) {
@@ -83,7 +87,6 @@ export default function VerifyPhoneScreen({ route, navigation }: any) {
     setVerifying(true);
     try {
       if (isLinking) {
-        // Linking phone to social account
         const { data } = await AUTH.verifyPhoneLink(phone, fullOtp);
         const updatedUser = data.data?.user;
         handlePhoneVerified(updatedUser ? {
@@ -91,9 +94,7 @@ export default function VerifyPhoneScreen({ route, navigation }: any) {
           phoneVerified: true,
           isVerified: true,
         } : undefined);
-        // Navigation handled by RootNavigator (requiresPhoneVerification becomes false)
       } else {
-        // Standard phone OTP login
         const { data } = await AUTH.verifyOtp(phone, fullOtp);
         const payload = data.data || data;
         await handleLoginSuccess(payload.user, payload.accessToken, payload.refreshToken);
@@ -122,12 +123,8 @@ export default function VerifyPhoneScreen({ route, navigation }: any) {
     }
   }
 
-  // ── Phone entry screen (for phone-link flow where no phone passed) ──────
+  // Phone entry screen (for phone-link flow where no phone passed)
   if (isLinking && !otpSent) {
-    const [newPhone, setNewPhone] = useState('');
-    const [sending, setSending] = useState(false);
-    const [err, setErr] = useState('');
-
     const formattedNewPhone = () => {
       const p = newPhone.replace(/\s/g, '');
       if (p.startsWith('0')) return '+254' + p.slice(1);
@@ -137,13 +134,15 @@ export default function VerifyPhoneScreen({ route, navigation }: any) {
 
     return (
       <View style={s.container}>
-        <SafeAreaView>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-            <Text style={s.backArrow}>←</Text>
+        <SafeAreaView edges={['top']}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={8}>
+            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
         </SafeAreaView>
         <View style={s.body}>
-          <View style={s.iconWrap}><Text style={s.iconEmoji}>🔒</Text></View>
+          <View style={s.iconWrap}>
+            <Ionicons name="lock-closed-outline" size={36} color={colors.primary} />
+          </View>
           <Text style={s.heading}>Verify Your Phone</Text>
           <Text style={s.subheading}>
             Link your phone number to prevent duplicate accounts and protect your referral earnings.
@@ -154,28 +153,31 @@ export default function VerifyPhoneScreen({ route, navigation }: any) {
               <TextInput
                 style={s.phoneField}
                 placeholder="712 345 678"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor={colors.textMuted}
                 keyboardType="phone-pad"
                 value={newPhone}
-                onChangeText={v => { setNewPhone(v); setErr(''); }}
+                onChangeText={v => { setNewPhone(v); setNewPhoneErr(''); }}
                 autoFocus
               />
             </View>
-            {err ? <Text style={{ color: '#EF4444', marginTop: 6, fontSize: 12 }}>{err}</Text> : null}
+            {newPhoneErr ? (
+              <Text style={{ color: colors.error, marginTop: 6, fontSize: FONTS.xs }}>{newPhoneErr}</Text>
+            ) : null}
           </View>
           <TouchableOpacity
-            style={[s.verifyBtn, sending && { opacity: 0.6 }]}
-            disabled={sending}
+            style={[s.verifyBtn, sendingNew && { opacity: 0.6 }]}
+            disabled={sendingNew}
             onPress={async () => {
               const fp = formattedNewPhone();
-              if (!/^\+254[0-9]{9}$/.test(fp)) { setErr('Enter a valid number'); return; }
-              setSending(true);
+              if (!/^\+254[0-9]{9}$/.test(fp)) { setNewPhoneErr('Enter a valid number'); return; }
+              setSendingNew(true);
               setPhone(fp);
               await sendOtp(fp);
-              setSending(false);
+              setSendingNew(false);
             }}
+            activeOpacity={0.85}
           >
-            {sending ? <ActivityIndicator color="#fff" /> : <Text style={s.verifyBtnText}>Send Code</Text>}
+            {sendingNew ? <ActivityIndicator color="#fff" /> : <Text style={s.verifyBtnText}>Send Code</Text>}
           </TouchableOpacity>
         </View>
       </View>
@@ -185,22 +187,20 @@ export default function VerifyPhoneScreen({ route, navigation }: any) {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={s.container}>
-        <SafeAreaView>
+        <SafeAreaView edges={['top']}>
           {!isLinking && (
-            <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-              <Text style={s.backArrow}>←</Text>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={8}>
+              <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
           )}
         </SafeAreaView>
 
         <View style={s.body}>
           <View style={s.iconWrap}>
-            <Text style={s.iconEmoji}>{isLinking ? '🔒' : '📱'}</Text>
+            <Ionicons name={isLinking ? 'lock-closed-outline' : 'phone-portrait-outline'} size={36} color={colors.primary} />
           </View>
 
-          <Text style={s.heading}>
-            {isLinking ? 'Link Your Phone' : 'Verify Your Number'}
-          </Text>
+          <Text style={s.heading}>{isLinking ? 'Link Your Phone' : 'Verify Your Number'}</Text>
           <Text style={s.subheading}>
             Enter the 6-digit code sent to{'\n'}
             <Text style={s.phoneHighlight}>{phone}</Text>
@@ -208,7 +208,7 @@ export default function VerifyPhoneScreen({ route, navigation }: any) {
 
           {devOtp ? (
             <View style={s.devBox}>
-              <Text style={s.devLabel}>🔑 Dev OTP:</Text>
+              <Text style={s.devLabel}>Dev OTP</Text>
               <Text style={s.devCode}>{devOtp}</Text>
             </View>
           ) : null}
@@ -238,8 +238,7 @@ export default function VerifyPhoneScreen({ route, navigation }: any) {
           >
             {verifying
               ? <ActivityIndicator color="#fff" />
-              : <Text style={s.verifyBtnText}>{isLinking ? 'Link & Continue' : 'Verify & Continue'}</Text>
-            }
+              : <Text style={s.verifyBtnText}>{isLinking ? 'Link & Continue' : 'Verify & Continue'}</Text>}
           </TouchableOpacity>
 
           <View style={s.resendRow}>
@@ -247,56 +246,108 @@ export default function VerifyPhoneScreen({ route, navigation }: any) {
             {countdown > 0 ? (
               <Text style={s.resendCountdown}>Resend in {countdown}s</Text>
             ) : (
-              <TouchableOpacity onPress={handleResend} disabled={resending}>
+              <TouchableOpacity onPress={handleResend} disabled={resending} hitSlop={6}>
                 {resending
-                  ? <ActivityIndicator color="#22C55E" size="small" />
-                  : <Text style={s.resendLink}>Resend OTP</Text>
-                }
+                  ? <ActivityIndicator color={colors.primary} size="small" />
+                  : <Text style={s.resendLink}>Resend OTP</Text>}
               </TouchableOpacity>
             )}
           </View>
 
           {isLinking && (
-            <Text style={s.linkingNote}>
-              🛡️ One phone number per account prevents referral abuse
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.lg }}>
+              <Ionicons name="shield-checkmark-outline" size={14} color={colors.textMuted} />
+              <Text style={s.linkingNote}>One phone number per account prevents referral abuse</Text>
+            </View>
           )}
-
-          {__DEV__ && <Text style={s.devHint}>Dev: check console for OTP</Text>}
         </View>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-const s = StyleSheet.create({
-  container:         { flex: 1, backgroundColor: '#0F1923' },
-  backBtn:           { paddingHorizontal: 16, paddingVertical: 12, width: 52 },
-  backArrow:         { fontSize: 22, color: '#fff' },
-  body:              { flex: 1, paddingHorizontal: 24, paddingTop: 20, alignItems: 'center' },
-  iconWrap:          { width: 80, height: 80, borderRadius: 24, backgroundColor: '#1A2535', justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
-  iconEmoji:         { fontSize: 36 },
-  heading:           { fontSize: 26, fontWeight: '800', color: '#fff', marginBottom: 12, textAlign: 'center' },
-  subheading:        { fontSize: 15, color: '#9CA3AF', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  phoneHighlight:    { color: '#22C55E', fontWeight: '700' },
-  devBox:            { backgroundColor: 'rgba(34,197,94,0.1)', borderRadius: 10, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: 'rgba(34,197,94,0.3)', alignItems: 'center', width: '100%' },
-  devLabel:          { color: '#9CA3AF', fontSize: 12, marginBottom: 4 },
-  devCode:           { color: '#22C55E', fontWeight: '800', fontSize: 24, letterSpacing: 8 },
-  otpRow:            { flexDirection: 'row', gap: 10, marginBottom: 32 },
-  otpInput:          { width: 46, height: 56, borderRadius: 12, backgroundColor: '#1A2535', borderWidth: 1.5, borderColor: '#374151', color: '#fff', fontSize: 22, fontWeight: '700', textAlign: 'center' },
-  otpInputFilled:    { borderColor: '#22C55E', backgroundColor: '#22C55E22' },
-  verifyBtn:         { width: '100%', backgroundColor: '#22C55E', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 20 },
-  verifyBtnDisabled: { opacity: 0.4 },
-  verifyBtnText:     { color: '#fff', fontSize: 16, fontWeight: '700' },
-  resendRow:         { flexDirection: 'row', alignItems: 'center' },
-  resendLabel:       { color: '#6B7280', fontSize: 14 },
-  resendCountdown:   { color: '#9CA3AF', fontSize: 14, fontWeight: '600' },
-  resendLink:        { color: '#22C55E', fontSize: 14, fontWeight: '700' },
-  linkingNote:       { marginTop: 20, color: '#6B7280', fontSize: 12, textAlign: 'center', paddingHorizontal: 20 },
-  devHint:           { marginTop: 16, color: '#374151', fontSize: 12 },
-  // Phone entry fields
-  phoneInputRow:     { flexDirection: 'row', backgroundColor: '#1A2535', borderRadius: 12, borderWidth: 1, borderColor: '#374151', overflow: 'hidden', width: '100%', marginBottom: 20 },
-  prefix:            { paddingHorizontal: 12, paddingVertical: 14, borderRightWidth: 1, borderRightColor: '#374151' },
-  prefixTxt:         { color: '#D1D5DB', fontSize: 13, fontWeight: '600' },
-  phoneField:        { flex: 1, color: '#fff', fontSize: 15, paddingHorizontal: 14, paddingVertical: 14 },
-});
+function makeStyles(colors: ColorPalette) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    backBtn: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.md, width: 52 },
+    body: { flex: 1, paddingHorizontal: SPACING.xl, paddingTop: SPACING.lg, alignItems: 'center' },
+    iconWrap: {
+      width: 80, height: 80, borderRadius: RADIUS['2xl'],
+      backgroundColor: colors.primaryMuted,
+      justifyContent: 'center', alignItems: 'center',
+      marginBottom: SPACING.xl,
+    },
+    heading: {
+      fontSize: FONTS['2xl'],
+      fontWeight: FONT_WEIGHT.extraBold,
+      color: colors.textPrimary,
+      marginBottom: SPACING.md,
+      textAlign: 'center',
+    },
+    subheading: {
+      fontSize: FONTS.base,
+      color: colors.textMuted,
+      textAlign: 'center',
+      lineHeight: 22,
+      marginBottom: SPACING.xl,
+    },
+    phoneHighlight: { color: colors.primary, fontWeight: FONT_WEIGHT.bold },
+
+    devBox: {
+      backgroundColor: colors.primaryMuted,
+      borderRadius: RADIUS.sm, padding: SPACING.md,
+      marginBottom: SPACING.lg,
+      borderWidth: 1, borderColor: colors.primary,
+      alignItems: 'center', width: '100%',
+    },
+    devLabel: { color: colors.textMuted, fontSize: FONTS.xs, marginBottom: 4 },
+    devCode: { color: colors.primary, fontWeight: FONT_WEIGHT.extraBold, fontSize: FONTS['2xl'], letterSpacing: 8 },
+
+    otpRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING['2xl'] },
+    otpInput: {
+      width: 46, height: 56, borderRadius: RADIUS.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1.5, borderColor: colors.border,
+      color: colors.textPrimary,
+      fontSize: 22, fontWeight: FONT_WEIGHT.bold,
+      textAlign: 'center',
+    },
+    otpInputFilled: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primaryMuted,
+    },
+
+    verifyBtn: {
+      width: '100%',
+      backgroundColor: colors.primary,
+      borderRadius: RADIUS.md,
+      paddingVertical: SPACING.base,
+      alignItems: 'center',
+      marginBottom: SPACING.lg,
+    },
+    verifyBtnDisabled: { opacity: 0.4 },
+    verifyBtnText: { color: '#fff', fontSize: FONTS.base, fontWeight: FONT_WEIGHT.bold },
+
+    resendRow: { flexDirection: 'row', alignItems: 'center' },
+    resendLabel: { color: colors.textMuted, fontSize: FONTS.sm },
+    resendCountdown: { color: colors.textSecondary, fontSize: FONTS.sm, fontWeight: FONT_WEIGHT.semiBold },
+    resendLink: { color: colors.primary, fontSize: FONTS.sm, fontWeight: FONT_WEIGHT.bold },
+
+    linkingNote: { color: colors.textMuted, fontSize: FONTS.xs, textAlign: 'center' },
+
+    phoneInputRow: {
+      flexDirection: 'row',
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.md,
+      borderWidth: 1, borderColor: colors.border,
+      overflow: 'hidden',
+      width: '100%', marginBottom: SPACING.lg,
+    },
+    prefix: {
+      paddingHorizontal: SPACING.md, paddingVertical: 14,
+      borderRightWidth: 1, borderRightColor: colors.border,
+    },
+    prefixTxt: { color: colors.textSecondary, fontSize: FONTS.sm, fontWeight: FONT_WEIGHT.semiBold },
+    phoneField: { flex: 1, color: colors.textPrimary, fontSize: FONTS.base, paddingHorizontal: SPACING.md, paddingVertical: 14 },
+  });
+}

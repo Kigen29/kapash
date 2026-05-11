@@ -166,8 +166,12 @@ export async function getPitchAvailability(req: Request, res: Response) {
   if (!pitch) throw new AppError('Pitch not found.', 404);
 
   const dateObj = new Date(date);
-  const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-  const hours = (pitch.operatingHours as any)[dayName];
+  const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase(); // monday, tuesday, ...
+  const shortName = dayName.slice(0, 3); // mon, tue, ... (back-compat with older pitch data)
+  const ohRaw = (pitch.operatingHours as any) || {};
+  const isEmptyHours = !ohRaw || Object.keys(ohRaw).length === 0;
+  // If the pitch has no operating hours at all, fall back to 6am-10pm so slots can still be shown.
+  const hours = ohRaw[dayName] || ohRaw[shortName] || (isEmptyHours ? { open: '06:00', close: '22:00' } : null);
 
   if (!hours) {
     return res.json({ success: true, data: { date, slots: [], message: 'Pitch closed on this day' } });
@@ -204,11 +208,32 @@ export async function getPitchAvailability(req: Request, res: Response) {
 export async function createPitch(req: AuthRequest, res: Response) {
   const data = createPitchSchema.parse(req.body);
   const ownerId = req.user!.id;
+  const isDev = process.env.NODE_ENV !== 'production';
+
+  // Default operating hours so availability slots can be generated immediately.
+  // Keys must match what `getPitchAvailability` looks up (full lowercase day names).
+  const defaultHours = {
+    monday:    { open: '06:00', close: '22:00' },
+    tuesday:   { open: '06:00', close: '22:00' },
+    wednesday: { open: '06:00', close: '22:00' },
+    thursday:  { open: '06:00', close: '22:00' },
+    friday:    { open: '06:00', close: '22:00' },
+    saturday:  { open: '06:00', close: '22:00' },
+    sunday:    { open: '06:00', close: '22:00' },
+  };
 
   const pitch = await prisma.pitch.create({
     data: {
       ...data,
       ownerId,
+      operatingHours: data.operatingHours ?? defaultHours,
+      // Dev: auto-activate so the pitch shows up in player search immediately.
+      // Prod: stays PENDING_VERIFICATION until an admin reviews.
+      ...(isDev && {
+        status: 'ACTIVE' as const,
+        isVerified: true,
+        verifiedAt: new Date(),
+      }),
       amenities: data.amenities ? {
         create: data.amenities.map(a => ({ name: a.name, icon: a.icon || '⚽' })),
       } : undefined,
@@ -218,9 +243,49 @@ export async function createPitch(req: AuthRequest, res: Response) {
 
   res.status(201).json({
     success: true,
-    message: 'Pitch submitted for verification. Our team will review it within 5 business days.',
+    message: isDev
+      ? 'Pitch created and listed.'
+      : 'Pitch submitted for verification. Our team will review it within 5 business days.',
     data: pitch,
   });
+}
+
+// ── Delete Pitch (Owner) ──────────────────────────────────────────────────────
+
+export async function deletePitch(req: AuthRequest, res: Response) {
+  const id = String(req.params.id);
+
+  const pitch = await prisma.pitch.findUnique({
+    where: { id },
+    include: { _count: { select: { bookings: true } } },
+  });
+  if (!pitch) throw new AppError('Pitch not found.', 404);
+  if (pitch.ownerId !== req.user!.id && req.user!.role !== 'ADMIN') {
+    throw new AppError('You do not own this pitch.', 403);
+  }
+
+  // Block hard delete if there are active or future bookings.
+  const activeBookings = await prisma.booking.count({
+    where: {
+      pitchId: id,
+      status: { in: ['CONFIRMED', 'PENDING_PAYMENT'] },
+      date: { gte: new Date() },
+    },
+  });
+  if (activeBookings > 0) {
+    throw new AppError(
+      `Cannot delete: this pitch has ${activeBookings} active or upcoming booking(s). Cancel them first.`,
+      400,
+    );
+  }
+
+  // Soft delete via status change so historical bookings stay intact.
+  await prisma.pitch.update({
+    where: { id },
+    data: { status: 'INACTIVE', isVerified: false },
+  });
+
+  res.json({ success: true, message: 'Pitch removed.' });
 }
 
 // ── Update Pitch (Owner) ──────────────────────────────────────────────────────

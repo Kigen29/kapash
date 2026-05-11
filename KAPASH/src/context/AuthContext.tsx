@@ -188,13 +188,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // so authenticated endpoints (pitches, bookings, dashboard, etc.) actually work.
   const devLogin = useCallback(async (role: 'PLAYER' | 'OWNER') => {
     try {
+      console.log('[devLogin] calling backend with role:', role);
       const { data } = await AUTH.devLogin(role);
+      console.log('[devLogin] response:', data);
       const payload = data.data || data;
+      if (!payload?.accessToken || !payload?.user) {
+        throw new Error('Backend did not return tokens. Check backend logs.');
+      }
       await TokenStorage.setTokens(payload.accessToken, payload.refreshToken);
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(payload.user));
       dispatch({ type: 'LOGIN_SUCCESS', payload: payload.user as User });
     } catch (err: any) {
-      dispatch({ type: 'ERROR', payload: err?.message || 'Dev login failed.' });
+      console.error('[devLogin] failed:', err);
+      const msg = err?.message || 'Dev login failed.';
+      dispatch({ type: 'ERROR', payload: msg });
+      throw err; // re-throw so caller can show alert
     }
   }, []);
 

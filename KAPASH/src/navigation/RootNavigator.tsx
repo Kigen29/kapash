@@ -27,6 +27,11 @@ import NotificationsScreen from '../screens/user/NotificationScreen';
 import EditProfileScreen from '../screens/user/EditProfileScreen';
 import ReviewsScreen from '../screens/user/ReviewsScreen'; // ✅ FIXED: was incorrectly pointing to ReferralScreen
 import AddPitchScreen from '../screens/owner/AddPitchScreen';
+import ManagePitchesScreen from '../screens/owner/ManagePitchesScreen';
+import EditPitchScreen from '../screens/owner/EditPitchScreen';
+import OwnerPayoutsScreen from '../screens/owner/OwnerPayoutsScreen';
+import OwnerBookingsScreen from '../screens/owner/OwnerBookingsScreen';
+import OwnerSettingsScreen from '../screens/owner/OwnerSettingsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -99,10 +104,22 @@ export default function RootNavigator() {
 
             {/* Owner tools */}
             <Stack.Screen
+              name="ManagePitches"
+              component={ManagePitchesScreen}
+            />
+            <Stack.Screen
               name="AddPitch"
               component={AddPitchScreen}
               options={{ animation: 'slide_from_bottom' }}
             />
+            <Stack.Screen
+              name="EditPitch"
+              component={EditPitchScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen name="OwnerPayouts"  component={OwnerPayoutsScreen} />
+            <Stack.Screen name="OwnerBookings" component={OwnerBookingsScreen} />
+            <Stack.Screen name="OwnerSettings" component={OwnerSettingsScreen} />
 
             {/* Phone linking for social auth users */}
             <Stack.Screen name="VerifyPhone"   component={VerifyPhoneScreen} />

@@ -182,11 +182,10 @@ export function useOwnerBookings(filters?: { status?: string; date?: string }) {
 export function useOwnerPitches() {
   return useFetch(() => OWNER.getPitches(), [], {
     transform: (d) =>
-      Array.isArray(d.pitches)
-        ? d.pitches
-        : Array.isArray(d.data)
-        ? d.data
-        : [],
+      Array.isArray(d) ? d :
+      Array.isArray(d?.pitches) ? d.pitches :
+      Array.isArray(d?.data) ? d.data :
+      [],
   });
 }
 

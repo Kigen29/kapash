@@ -154,7 +154,10 @@ router.get('/payouts', async (req: AuthRequest, res: Response) => {
 // GET /api/v1/owner/pitches
 router.get('/pitches', async (req: AuthRequest, res: Response) => {
   const pitches = await prisma.pitch.findMany({
-    where: { ownerId: req.user!.id },
+    where: {
+      ownerId: req.user!.id,
+      status: { not: 'INACTIVE' }, // hide deleted
+    },
     include: {
       images: { where: { isPrimary: true }, take: 1 },
       _count: { select: { bookings: true } },

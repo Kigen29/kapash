@@ -39,35 +39,79 @@ export default function PitchDetailsScreen({ route, navigation }: any) {
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   const [selectedDate, setSelectedDate] = useState(DATES[0].value);
-  const [selectedSlotKey, setSelectedSlotKey] = useState<string | null>(null);
+  const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [imgIndex, setImgIndex] = useState(0);
 
   const { data: pitch, isLoading, error, refetch } = usePitch(pitchId);
   const { data: slots, isLoading: slotsLoading } = usePitchSlots(pitchId, selectedDate);
 
+  const MAX_HOURS = 4;
+
   const handleDateChange = (date: string) => {
     setSelectedDate(date);
-    setSelectedSlotKey(null);
+    setSelectedSlots([]);
   };
 
+  const toggleSlot = (startTime: string) => {
+    setSelectedSlots(prev => {
+      if (prev.includes(startTime)) {
+        // Allow removing only the boundary slots so the remaining selection stays contiguous
+        const sorted = [...prev].sort();
+        if (startTime === sorted[0] || startTime === sorted[sorted.length - 1]) {
+          return prev.filter(s => s !== startTime);
+        }
+        // Removing a middle slot — reset to just that one tap
+        return [startTime];
+      }
+      // Adding: must be adjacent to existing selection (or first selection)
+      if (prev.length === 0) return [startTime];
+      if (prev.length >= MAX_HOURS) {
+        Alert.alert('Limit reached', `You can book up to ${MAX_HOURS} hours at once.`);
+        return prev;
+      }
+      const sorted = [...prev].sort();
+      const first = sorted[0];
+      const last  = sorted[sorted.length - 1];
+      const startHour = parseInt(startTime.slice(0, 2), 10);
+      const firstHour = parseInt(first.slice(0, 2), 10);
+      const lastHour  = parseInt(last.slice(0, 2),  10);
+      if (startHour === firstHour - 1 || startHour === lastHour + 1) {
+        return [...prev, startTime];
+      }
+      // Non-adjacent — start fresh from this slot
+      return [startTime];
+    });
+  };
+
+  // Compute combined startTime / endTime for selected slots
+  const selection = useMemo(() => {
+    if (selectedSlots.length === 0) return null;
+    const sorted = [...selectedSlots].sort();
+    const first = sorted[0];
+    const last  = sorted[sorted.length - 1];
+    const lastSlot = (slots as any[])?.find((sl: any) => sl.startTime === last);
+    const endTime = lastSlot?.endTime ?? `${String(parseInt(last.slice(0, 2), 10) + 1).padStart(2, '0')}:00`;
+    const hours = sorted.length;
+    const total = hours * (pitch?.pricePerHour ?? 0);
+    return { startTime: first, endTime, hours, total };
+  }, [selectedSlots, slots, pitch]);
+
   const handleBook = useCallback(() => {
-    if (!selectedSlotKey) {
-      Alert.alert('Select a slot', 'Please choose an available time slot first.');
+    if (!selection) {
+      Alert.alert('Select a slot', 'Please choose at least one available time slot.');
       return;
     }
-    const slot = (slots as any[])?.find((sl: any) => sl.startTime === selectedSlotKey);
-    if (!slot) return;
     navigation.navigate('Checkout', {
       pitchId,
       pitchName: pitch?.name,
       pitchAddress: pitch?.address,
       date: selectedDate,
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-      price: slot.price || pitch?.pricePerHour,
+      startTime: selection.startTime,
+      endTime: selection.endTime,
+      price: selection.total,
       pitchImage: (pitch as any)?.images?.[0]?.url,
     });
-  }, [selectedSlotKey, slots, pitch, selectedDate, pitchId, navigation]);
+  }, [selection, pitch, selectedDate, pitchId, navigation]);
 
   if (isLoading) {
     return (
@@ -241,35 +285,42 @@ export default function PitchDetailsScreen({ route, navigation }: any) {
               <Text style={s.emptyText}>No slots available for this date</Text>
             </View>
           ) : (
-            <View style={s.slotsGrid}>
-              {slotList.map((sl: any) => {
-                const isAvailable = ['available', 'AVAILABLE'].includes(sl.status);
-                const isSelected = selectedSlotKey === sl.startTime;
-                const isBooked = ['booked', 'BOOKED', 'held', 'HELD'].includes(sl.status);
-                return (
-                  <TouchableOpacity
-                    key={sl.startTime}
-                    style={[
-                      s.slotChip,
-                      isAvailable && s.slotChipAvailable,
-                      isSelected && s.slotChipSelected,
-                      isBooked && s.slotChipBooked,
-                    ]}
-                    onPress={() => isAvailable && setSelectedSlotKey(sl.startTime)}
-                    disabled={!isAvailable}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={[
-                      s.slotText,
-                      isSelected && s.slotTextSelected,
-                      isBooked && s.slotTextBooked,
-                    ]}>
-                      {sl.startTime}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <>
+              <View style={s.slotsGrid}>
+                {slotList.map((sl: any) => {
+                  const isAvailable = ['available', 'AVAILABLE'].includes(sl.status);
+                  const isSelected = selectedSlots.includes(sl.startTime);
+                  const isBooked = ['booked', 'BOOKED', 'held', 'HELD'].includes(sl.status);
+                  return (
+                    <TouchableOpacity
+                      key={sl.startTime}
+                      style={[
+                        s.slotChip,
+                        isAvailable && s.slotChipAvailable,
+                        isSelected && s.slotChipSelected,
+                        isBooked && s.slotChipBooked,
+                      ]}
+                      onPress={() => isAvailable && toggleSlot(sl.startTime)}
+                      disabled={!isAvailable}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[
+                        s.slotText,
+                        isSelected && s.slotTextSelected,
+                        isBooked && s.slotTextBooked,
+                      ]}>
+                        {sl.startTime}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {selectedSlots.length > 0 && (
+                <Text style={s.slotsHint}>
+                  Tap an adjacent hour to extend, or tap the first/last selected hour to remove it.
+                </Text>
+              )}
+            </>
           )}
         </View>
       </ScrollView>
@@ -277,16 +328,20 @@ export default function PitchDetailsScreen({ route, navigation }: any) {
       {/* Bottom CTA */}
       <SafeAreaView edges={['bottom']} style={s.ctaWrap}>
         <View style={s.ctaInner}>
-          <View>
-            <Text style={s.ctaLabel}>{selectedSlotKey ? 'Selected' : 'Pick a slot'}</Text>
-            <Text style={s.ctaPrice}>
-              {selectedSlotKey ? `${selectedSlotKey} – ${slotList.find((sl: any) => sl.startTime === selectedSlotKey)?.endTime ?? ''}` : `KSh ${pitch.pricePerHour?.toLocaleString()}/hr`}
+          <View style={{ flex: 1 }}>
+            <Text style={s.ctaLabel}>
+              {selection ? `${selection.hours} ${selection.hours === 1 ? 'hour' : 'hours'} selected` : 'Pick one or more hours'}
+            </Text>
+            <Text style={s.ctaPrice} numberOfLines={1}>
+              {selection
+                ? `${selection.startTime} – ${selection.endTime} · KSh ${selection.total.toLocaleString()}`
+                : `KSh ${pitch.pricePerHour?.toLocaleString()}/hr`}
             </Text>
           </View>
           <TouchableOpacity
-            style={[s.ctaBtn, !selectedSlotKey && s.ctaBtnDisabled]}
+            style={[s.ctaBtn, !selection && s.ctaBtnDisabled]}
             onPress={handleBook}
-            disabled={!selectedSlotKey}
+            disabled={!selection}
             activeOpacity={0.9}
           >
             <Text style={s.ctaBtnText}>Book Now</Text>
@@ -501,6 +556,14 @@ function makeStyles(colors: ColorPalette) {
     },
     slotTextSelected: { color: '#fff' },
     slotTextBooked: { color: colors.textMuted, textDecorationLine: 'line-through' },
+
+    slotsHint: {
+      paddingHorizontal: SPACING.base,
+      marginTop: SPACING.sm,
+      color: colors.textMuted,
+      fontSize: FONTS.xs,
+      lineHeight: 16,
+    },
 
     emptySlots: {
       alignItems: 'center',

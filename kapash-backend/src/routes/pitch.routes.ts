@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   searchPitches, getPitch, getPitchAvailability,
-  createPitch, updatePitch,
+  createPitch, updatePitch, deletePitch,
 } from '../controllers/pitch.controller';
 import { authenticate, requireOwner } from '../middleware/authenticate';
 import { upload } from '../services/upload.service';
@@ -17,6 +17,7 @@ router.get('/:id/availability', getPitchAvailability);
 // Owner only
 router.post('/', authenticate, requireOwner, createPitch);
 router.patch('/:id', authenticate, requireOwner, updatePitch);
+router.delete('/:id', authenticate, requireOwner, deletePitch);
 router.post('/:id/images', authenticate, requireOwner, upload.array('images', 5), uploadPitchImages);
 router.delete('/:id/images/:imageId', authenticate, requireOwner, deletePitchImage);
 

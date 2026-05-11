@@ -35,11 +35,36 @@ interface UploadResult {
   height: number;
 }
 
+// Dev fallback when Cloudinary credentials aren't configured.
+// Returns a deterministic Unsplash placeholder so the pitch creation flow stays unblocked.
+const DEV_PLACEHOLDERS = [
+  'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=1200',
+  'https://images.unsplash.com/photo-1551958219-acbc608c6377?w=1200',
+  'https://images.unsplash.com/photo-1487466365202-1afdb86c764e?w=1200',
+];
+
+function isCloudinaryConfigured() {
+  const name = process.env.CLOUDINARY_CLOUD_NAME;
+  return !!name && name !== 'placeholder' && name !== 'your_cloud_name';
+}
+
 export async function uploadImage(
   buffer: Buffer,
   folder: string,
   filename?: string
 ): Promise<UploadResult> {
+  // Dev fallback — return a placeholder so pitch creation isn't blocked by missing creds
+  if (!isCloudinaryConfigured()) {
+    logger.warn('Cloudinary not configured — returning placeholder image URL.');
+    const url = DEV_PLACEHOLDERS[Math.floor(Math.random() * DEV_PLACEHOLDERS.length)];
+    return {
+      url,
+      publicId: `dev-placeholder-${Date.now()}`,
+      width: 1200,
+      height: 800,
+    };
+  }
+
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       {
@@ -51,7 +76,6 @@ export async function uploadImage(
           { format: 'webp' },
         ],
         eager: [
-          // Thumbnail
           { width: 400, height: 300, crop: 'fill', gravity: 'auto', quality: 'auto', format: 'webp' },
         ],
         eager_async: true,

@@ -1,30 +1,27 @@
-/**
- * ReviewsScreen
- * Place at: src/screens/user/ReviewsScreen.tsx
- */
-
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   ActivityIndicator, RefreshControl, TextInput, Alert, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useFetch } from '../../hooks/useData';
 import { USER } from '../../services/api';
+import { useTheme } from '../../context/ThemeContext';
+import { ColorPalette, FONTS, FONT_WEIGHT, RADIUS, SPACING } from '../../constants/theme';
 
 function StarRow({
-  rating, size = 16, onPress,
-}: { rating: number; size?: number; onPress?: (r: number) => void }) {
+  rating, size = 16, onPress, mutedColor,
+}: { rating: number; size?: number; onPress?: (r: number) => void; mutedColor: string }) {
   return (
     <View style={{ flexDirection: 'row', gap: 3 }}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <TouchableOpacity
-          key={i}
-          onPress={() => onPress?.(i)}
-          disabled={!onPress}
-          activeOpacity={0.7}
-        >
-          <Text style={{ fontSize: size, color: i <= rating ? '#F59E0B' : '#374151' }}>★</Text>
+      {[1, 2, 3, 4, 5].map(i => (
+        <TouchableOpacity key={i} onPress={() => onPress?.(i)} disabled={!onPress} activeOpacity={0.7} hitSlop={4}>
+          <Ionicons
+            name={i <= rating ? 'star' : 'star-outline'}
+            size={size}
+            color={i <= rating ? '#FBBF24' : mutedColor}
+          />
         </TouchableOpacity>
       ))}
     </View>
@@ -32,12 +29,15 @@ function StarRow({
 }
 
 export default function ReviewsScreen({ navigation }: any) {
-  const [refreshing, setRefreshing]     = useState(false);
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
+  const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedReview, setSelected]   = useState<any>(null);
-  const [editRating, setEditRating]     = useState(5);
-  const [editComment, setEditComment]   = useState('');
-  const [submitting, setSubmitting]     = useState(false);
+  const [selectedReview, setSelected] = useState<any>(null);
+  const [editRating, setEditRating] = useState(5);
+  const [editComment, setEditComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const { data, isLoading, error, refetch } = useFetch(
     () => USER.getReviews(),
@@ -67,10 +67,7 @@ export default function ReviewsScreen({ navigation }: any) {
     }
     setSubmitting(true);
     try {
-      await USER.updateReview(selectedReview.id, {
-        rating: editRating,
-        comment: editComment.trim(),
-      });
+      await USER.updateReview(selectedReview.id, { rating: editRating, comment: editComment.trim() });
       setModalVisible(false);
       refetch();
     } catch (err: any) {
@@ -80,118 +77,111 @@ export default function ReviewsScreen({ navigation }: any) {
     }
   }
 
-  function formatDate(d: string) {
-    return new Date(d).toLocaleDateString('en-KE', {
-      day: 'numeric', month: 'short', year: 'numeric',
-    });
-  }
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
     <View style={s.container}>
-      <SafeAreaView>
+      <SafeAreaView edges={['top']} style={s.headerSafe}>
         <View style={s.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-            <Text style={s.backArrow}>←</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={s.iconBtn} hitSlop={8}>
+            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={s.title}>My Reviews</Text>
-          <View style={{ width: 36 }} />
+          <View style={{ width: 40 }} />
         </View>
       </SafeAreaView>
 
       {isLoading ? (
-        <ActivityIndicator color="#22C55E" style={{ marginTop: 60 }} />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 60 }} />
       ) : error ? (
         <View style={s.center}>
+          <Ionicons name="cloud-offline-outline" size={44} color={colors.textMuted} />
           <Text style={s.errorText}>Failed to load reviews</Text>
-          <TouchableOpacity style={s.retryBtn} onPress={refetch}>
-            <Text style={s.retryText}>Retry</Text>
+          <TouchableOpacity style={s.primaryBtn} onPress={refetch} activeOpacity={0.85}>
+            <Text style={s.primaryBtnText}>Retry</Text>
           </TouchableOpacity>
         </View>
       ) : reviews.length === 0 ? (
         <View style={s.center}>
-          <Text style={s.emptyIcon}>⭐</Text>
+          <View style={s.emptyIconWrap}>
+            <Ionicons name="star-outline" size={36} color={colors.primary} />
+          </View>
           <Text style={s.emptyTitle}>No Reviews Yet</Text>
-          <Text style={s.emptySubtitle}>
-            After completing a booking you can rate the pitch
-          </Text>
+          <Text style={s.emptySubtitle}>After completing a booking you can rate the pitch.</Text>
         </View>
       ) : (
         <FlatList
           data={reviews}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+          keyExtractor={item => item.id}
+          contentContainerStyle={{ padding: SPACING.base, paddingBottom: SPACING['3xl'] }}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#22C55E" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
           }
           renderItem={({ item }) => (
             <View style={s.card}>
               <View style={s.cardTop}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.pitchName} numberOfLines={1}>
-                    {item.pitch?.name || 'Pitch'}
-                  </Text>
-                  <Text style={s.pitchAddr} numberOfLines={1}>
-                    {item.pitch?.address || ''}
-                  </Text>
+                  <Text style={s.pitchName} numberOfLines={1}>{item.pitch?.name || 'Pitch'}</Text>
+                  {item.pitch?.address ? (
+                    <Text style={s.pitchAddr} numberOfLines={1}>{item.pitch.address}</Text>
+                  ) : null}
                 </View>
-                <TouchableOpacity style={s.editBtn} onPress={() => openEdit(item)}>
+                <TouchableOpacity style={s.editBtn} onPress={() => openEdit(item)} activeOpacity={0.85}>
+                  <Ionicons name="pencil-outline" size={12} color={colors.primary} />
                   <Text style={s.editBtnText}>Edit</Text>
                 </TouchableOpacity>
               </View>
 
               <View style={s.ratingRow}>
-                <StarRow rating={item.rating} size={18} />
+                <StarRow rating={item.rating} size={18} mutedColor={colors.textMuted} />
                 <Text style={s.dateText}>{formatDate(item.createdAt)}</Text>
               </View>
 
               {item.comment
                 ? <Text style={s.comment}>{item.comment}</Text>
-                : <Text style={s.noComment}>No written review</Text>
-              }
+                : <Text style={s.noComment}>No written review</Text>}
             </View>
           )}
         />
       )}
 
-      {/* Edit Modal */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={s.modalOverlay}>
           <View style={s.modal}>
+            <View style={s.modalHandle} />
             <Text style={s.modalTitle}>Edit Review</Text>
             <Text style={s.modalPitch}>{selectedReview?.pitch?.name}</Text>
 
             <Text style={s.modalLabel}>Rating</Text>
-            <StarRow rating={editRating} size={32} onPress={setEditRating} />
+            <StarRow rating={editRating} size={32} onPress={setEditRating} mutedColor={colors.textMuted} />
 
-            <Text style={[s.modalLabel, { marginTop: 20 }]}>Your Review</Text>
+            <Text style={[s.modalLabel, { marginTop: SPACING.lg }]}>Your Review</Text>
             <TextInput
               style={s.modalInput}
               value={editComment}
               onChangeText={setEditComment}
               placeholder="Share your experience..."
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
             />
 
-            <View style={s.modalBtns}>
-              <TouchableOpacity
-                style={s.modalCancelBtn}
-                onPress={() => setModalVisible(false)}
-              >
+            <View style={{ flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.lg }}>
+              <TouchableOpacity style={s.modalCancelBtn} onPress={() => setModalVisible(false)} activeOpacity={0.85}>
                 <Text style={s.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[s.modalSaveBtn, submitting && { opacity: 0.6 }]}
                 onPress={handleSubmitEdit}
                 disabled={submitting}
+                activeOpacity={0.85}
               >
                 {submitting
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={s.modalSaveText}>Save</Text>
-                }
+                  : <Text style={s.modalSaveText}>Save</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -201,38 +191,93 @@ export default function ReviewsScreen({ navigation }: any) {
   );
 }
 
-const s = StyleSheet.create({
-  container:      { flex: 1, backgroundColor: '#0F1923' },
-  header:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-  backBtn:        { width: 36, height: 36, justifyContent: 'center' },
-  backArrow:      { fontSize: 22, color: '#fff' },
-  title:          { fontSize: 18, fontWeight: '700', color: '#fff' },
-  center:         { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  errorText:      { color: '#EF4444', fontSize: 15, marginBottom: 12 },
-  retryBtn:       { backgroundColor: '#1A2535', paddingHorizontal: 24, paddingVertical: 10, borderRadius: 10 },
-  retryText:      { color: '#22C55E', fontWeight: '600' },
-  emptyIcon:      { fontSize: 48, marginBottom: 16 },
-  emptyTitle:     { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 8 },
-  emptySubtitle:  { color: '#6B7280', fontSize: 14, textAlign: 'center' },
-  card:           { backgroundColor: '#1A2535', borderRadius: 16, padding: 16, marginBottom: 12 },
-  cardTop:        { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
-  pitchName:      { color: '#fff', fontSize: 15, fontWeight: '700' },
-  pitchAddr:      { color: '#9CA3AF', fontSize: 12, marginTop: 2 },
-  editBtn:        { backgroundColor: '#0F1923', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  editBtnText:    { color: '#22C55E', fontSize: 12, fontWeight: '700' },
-  ratingRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  dateText:       { color: '#6B7280', fontSize: 12 },
-  comment:        { color: '#D1D5DB', fontSize: 14, lineHeight: 20 },
-  noComment:      { color: '#6B7280', fontSize: 13, fontStyle: 'italic' },
-  modalOverlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modal:          { backgroundColor: '#1A2535', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
-  modalTitle:     { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 4 },
-  modalPitch:     { color: '#9CA3AF', fontSize: 13, marginBottom: 20 },
-  modalLabel:     { color: '#9CA3AF', fontSize: 13, fontWeight: '600', marginBottom: 10 },
-  modalInput:     { backgroundColor: '#0F1923', borderRadius: 12, padding: 14, color: '#fff', fontSize: 14, minHeight: 100, borderWidth: 1, borderColor: '#374151' },
-  modalBtns:      { flexDirection: 'row', gap: 12, marginTop: 20 },
-  modalCancelBtn: { flex: 1, backgroundColor: '#0F1923', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  modalCancelText:{ color: '#9CA3AF', fontWeight: '600' },
-  modalSaveBtn:   { flex: 1, backgroundColor: '#22C55E', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  modalSaveText:  { color: '#fff', fontWeight: '700' },
-});
+function makeStyles(colors: ColorPalette) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    headerSafe: { backgroundColor: colors.background },
+
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: SPACING.base,
+      paddingVertical: SPACING.md,
+    },
+    iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    title: { fontSize: FONTS.lg, fontWeight: FONT_WEIGHT.bold, color: colors.textPrimary },
+
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl, gap: SPACING.md },
+    errorText: { color: colors.textMuted, fontSize: FONTS.sm },
+    primaryBtn: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: SPACING.xl,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.md,
+    },
+    primaryBtnText: { color: '#fff', fontWeight: FONT_WEIGHT.bold, fontSize: FONTS.sm },
+    emptyIconWrap: {
+      width: 72, height: 72, borderRadius: 36,
+      backgroundColor: colors.primaryMuted,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    emptyTitle: { color: colors.textPrimary, fontSize: FONTS.lg, fontWeight: FONT_WEIGHT.bold },
+    emptySubtitle: { color: colors.textMuted, fontSize: FONTS.sm, textAlign: 'center' },
+
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.base,
+      marginBottom: SPACING.md,
+      borderWidth: 1, borderColor: colors.border,
+    },
+    cardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: SPACING.sm },
+    pitchName: { color: colors.textPrimary, fontSize: FONTS.base, fontWeight: FONT_WEIGHT.bold },
+    pitchAddr: { color: colors.textMuted, fontSize: FONTS.xs, marginTop: 2 },
+    editBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: colors.primaryMuted,
+      paddingHorizontal: SPACING.md, paddingVertical: 6,
+      borderRadius: RADIUS.sm,
+    },
+    editBtnText: { color: colors.primary, fontSize: FONTS.xs, fontWeight: FONT_WEIGHT.bold },
+    ratingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.sm },
+    dateText: { color: colors.textMuted, fontSize: FONTS.xs },
+    comment: { color: colors.textSecondary, fontSize: FONTS.sm, lineHeight: 20 },
+    noComment: { color: colors.textMuted, fontSize: FONTS.xs, fontStyle: 'italic' },
+
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+    modal: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      padding: SPACING.xl, paddingBottom: SPACING['3xl'],
+    },
+    modalHandle: {
+      alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
+      backgroundColor: colors.border,
+      marginBottom: SPACING.lg,
+    },
+    modalTitle: { color: colors.textPrimary, fontSize: FONTS.lg, fontWeight: FONT_WEIGHT.bold, marginBottom: 4 },
+    modalPitch: { color: colors.textMuted, fontSize: FONTS.sm, marginBottom: SPACING.lg },
+    modalLabel: { color: colors.textSecondary, fontSize: FONTS.sm, fontWeight: FONT_WEIGHT.semiBold, marginBottom: SPACING.sm },
+    modalInput: {
+      backgroundColor: colors.background,
+      borderRadius: RADIUS.md,
+      padding: SPACING.md,
+      color: colors.textPrimary,
+      fontSize: FONTS.sm,
+      minHeight: 100,
+      borderWidth: 1, borderColor: colors.border,
+    },
+    modalCancelBtn: {
+      flex: 1, backgroundColor: colors.background,
+      borderWidth: 1, borderColor: colors.border,
+      borderRadius: RADIUS.md, paddingVertical: 14, alignItems: 'center',
+    },
+    modalCancelText: { color: colors.textSecondary, fontWeight: FONT_WEIGHT.semiBold },
+    modalSaveBtn: {
+      flex: 1, backgroundColor: colors.primary,
+      borderRadius: RADIUS.md, paddingVertical: 14, alignItems: 'center',
+    },
+    modalSaveText: { color: '#fff', fontWeight: FONT_WEIGHT.bold },
+  });
+}

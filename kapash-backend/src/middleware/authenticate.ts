@@ -83,5 +83,5 @@ export function requireRole(...roles: UserRole[]) {
 }
 
 export const requireAdmin = requireRole('ADMIN');
-export const requireOwner = requireRole('PITCH_OWNER', 'ADMIN');
-export const requireCustomer = requireRole('CUSTOMER', 'ADMIN');
+export const requireOwner = requireRole('OWNER', 'ADMIN');
+export const requireCustomer = requireRole('PLAYER', 'ADMIN');
