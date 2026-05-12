@@ -208,9 +208,8 @@ export async function getPitchAvailability(req: Request, res: Response) {
 export async function createPitch(req: AuthRequest, res: Response) {
   const data = createPitchSchema.parse(req.body);
   const ownerId = req.user!.id;
-  const isDev = process.env.NODE_ENV !== 'production';
 
-  // Default operating hours so availability slots can be generated immediately.
+  // Default operating hours so availability slots can be generated once verified.
   // Keys must match what `getPitchAvailability` looks up (full lowercase day names).
   const defaultHours = {
     monday:    { open: '06:00', close: '22:00' },
@@ -222,14 +221,19 @@ export async function createPitch(req: AuthRequest, res: Response) {
     sunday:    { open: '06:00', close: '22:00' },
   };
 
+  // Optional escape hatch: admins can flip `auto_verify_pitches` in /admin/settings
+  // to skip the verification queue in special dev/staging environments.
+  const autoVerifySetting = await prisma.systemSetting.findUnique({
+    where: { key: 'auto_verify_pitches' },
+  });
+  const autoVerify = autoVerifySetting?.value === true;
+
   const pitch = await prisma.pitch.create({
     data: {
       ...data,
       ownerId,
       operatingHours: data.operatingHours ?? defaultHours,
-      // Dev: auto-activate so the pitch shows up in player search immediately.
-      // Prod: stays PENDING_VERIFICATION until an admin reviews.
-      ...(isDev && {
+      ...(autoVerify && {
         status: 'ACTIVE' as const,
         isVerified: true,
         verifiedAt: new Date(),
@@ -243,9 +247,9 @@ export async function createPitch(req: AuthRequest, res: Response) {
 
   res.status(201).json({
     success: true,
-    message: isDev
+    message: autoVerify
       ? 'Pitch created and listed.'
-      : 'Pitch submitted for verification. Our team will review it within 5 business days.',
+      : 'Pitch submitted for verification. Our team will review it shortly.',
     data: pitch,
   });
 }

@@ -53,6 +53,8 @@ export function usePitches(filters?: {
   minPrice?: number;
   maxPrice?: number;
   amenities?: string[];
+  latitude?: number;
+  longitude?: number;
 }) {
   return useFetch(
     () =>
@@ -61,6 +63,8 @@ export function usePitches(filters?: {
         minPrice: filters?.minPrice,
         maxPrice: filters?.maxPrice,
         amenities: filters?.amenities?.join(","),
+        lat: filters?.latitude,
+        lng: filters?.longitude,
       }),
     [JSON.stringify(filters)],
     {

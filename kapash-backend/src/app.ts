@@ -19,7 +19,10 @@ import paymentRoutes from './routes/payment.routes';
 import reviewRoutes from './routes/review.routes';
 import ownerRoutes from './routes/owner.routes';
 import adminRoutes from './routes/admin.routes';
+import adminCorporateRoutes from './routes/admin-corporate.routes';
+import adminReportsRoutes from './routes/admin-reports.routes';
 import notificationRoutes from './routes/notification.routes';
+import corporateRoutes from './routes/corporate.routes';
 
 const app: Application = express();
 
@@ -138,6 +141,9 @@ app.use(`${apiPrefix}/payments`,      paymentRoutes);
 app.use(`${apiPrefix}/reviews`,       reviewRoutes);
 app.use(`${apiPrefix}/owner`,         ownerRoutes);
 app.use(`${apiPrefix}/admin`,         adminRoutes);
+app.use(`${apiPrefix}/admin`,         adminCorporateRoutes);
+app.use(`${apiPrefix}/admin/reports`, adminReportsRoutes);
+app.use(`${apiPrefix}/corporate`,     corporateRoutes);
 app.use(`${apiPrefix}/notifications`, notificationRoutes);
 
 // ── Error Handling ────────────────────────────────────────────────────────────

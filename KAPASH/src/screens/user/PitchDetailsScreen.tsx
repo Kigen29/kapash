@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, FlatList, Image, Alert, Dimensions,
+  ActivityIndicator, FlatList, Image, Alert, Dimensions, Linking, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Mapbox from '@rnmapbox/maps';
 import { usePitch, usePitchSlots } from '../../hooks/useData';
 import { useTheme } from '../../context/ThemeContext';
 import { ColorPalette, FONTS, FONT_WEIGHT, RADIUS, SPACING } from '../../constants/theme';
@@ -235,6 +236,59 @@ export default function PitchDetailsScreen({ route, navigation }: any) {
           <View style={s.section}>
             <Text style={s.sectionTitle}>About</Text>
             <Text style={s.bodyText}>{pitch.description}</Text>
+          </View>
+        )}
+
+        {/* Location map */}
+        {typeof pitch.latitude === 'number' && typeof pitch.longitude === 'number' && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Location</Text>
+            <View style={s.mapWrap}>
+              <Mapbox.MapView
+                style={StyleSheet.absoluteFill}
+                styleURL={Mapbox.StyleURL.Street}
+                scrollEnabled={false}
+                zoomEnabled={false}
+                rotateEnabled={false}
+                pitchEnabled={false}
+                attributionEnabled={false}
+                logoEnabled={false}
+                scaleBarEnabled={false}
+              >
+                <Mapbox.Camera
+                  defaultSettings={{
+                    centerCoordinate: [pitch.longitude, pitch.latitude],
+                    zoomLevel: 14,
+                  }}
+                />
+                <Mapbox.PointAnnotation
+                  id="pitch-pin"
+                  coordinate={[pitch.longitude, pitch.latitude]}
+                >
+                  <View style={s.mapMarker}>
+                    <Ionicons name="location" size={28} color={colors.primary} />
+                  </View>
+                </Mapbox.PointAnnotation>
+              </Mapbox.MapView>
+              <TouchableOpacity
+                style={s.openMapsBtn}
+                onPress={() => {
+                  const lat = pitch.latitude!;
+                  const lng = pitch.longitude!;
+                  const label = encodeURIComponent(pitch.name || 'Pitch');
+                  const url = Platform.OS === 'ios'
+                    ? `maps:0,0?q=${label}@${lat},${lng}`
+                    : `geo:${lat},${lng}?q=${lat},${lng}(${label})`;
+                  Linking.openURL(url).catch(() => {
+                    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+                  });
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="navigate-outline" size={14} color="#fff" />
+                <Text style={s.openMapsText}>Open in Maps</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -471,6 +525,37 @@ function makeStyles(colors: ColorPalette) {
       color: colors.textSecondary,
       lineHeight: 22,
       paddingHorizontal: SPACING.base,
+    },
+
+    mapWrap: {
+      marginHorizontal: SPACING.base,
+      height: 180,
+      borderRadius: RADIUS.lg,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    openMapsBtn: {
+      position: 'absolute',
+      bottom: SPACING.sm,
+      right: SPACING.sm,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.primary,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: 8,
+      borderRadius: RADIUS.full,
+    },
+    openMapsText: {
+      color: '#fff',
+      fontSize: FONTS.xs,
+      fontWeight: FONT_WEIGHT.bold,
+    },
+    mapMarker: {
+      alignItems: 'center',
+      justifyContent: 'center',
     },
 
     amenityGrid: {

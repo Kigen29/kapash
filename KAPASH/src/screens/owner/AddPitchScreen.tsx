@@ -9,6 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { PITCHES } from '../../services/api';
 import { useTheme } from '../../context/ThemeContext';
 import { ColorPalette, FONTS, FONT_WEIGHT, RADIUS, SPACING } from '../../constants/theme';
+import LocationPicker from '../../components/LocationPicker';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -39,9 +40,8 @@ const AMENITY_OPTIONS: { name: string; icon: IoniconName; emoji: string }[] = [
   { name: 'First Aid',       icon: 'medkit-outline',  emoji: '🏥' },
 ];
 
-// Nairobi default coordinates (Westlands area)
-const DEFAULT_LAT = -1.2649;
-const DEFAULT_LNG = 36.8025;
+// Nairobi default coordinates (Westlands area) — initial map center before owner picks a real location
+const DEFAULT_COORDS = { latitude: -1.2649, longitude: 36.8025 };
 
 const DAYS: { key: string; label: string }[] = [
   { key: 'monday',    label: 'Mon' },
@@ -63,6 +63,7 @@ export default function AddPitchScreen({ navigation }: any) {
   const [name, setName]               = useState('');
   const [address, setAddress]         = useState('');
   const [city, setCity]               = useState('Nairobi');
+  const [coords, setCoords]           = useState(DEFAULT_COORDS);
   const [type, setType]               = useState<PitchType>('ASTRO_TURF');
   const [size, setSize]               = useState<PitchSize>('SEVEN_A_SIDE');
   const [price, setPrice]             = useState('');
@@ -135,8 +136,8 @@ export default function AddPitchScreen({ navigation }: any) {
         address: address.trim(),
         city: city.trim() || 'Nairobi',
         county: city.trim() || 'Nairobi',
-        latitude: DEFAULT_LAT,
-        longitude: DEFAULT_LNG,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
         type,
         size,
         pricePerHour: priceNum,
@@ -218,6 +219,16 @@ export default function AddPitchScreen({ navigation }: any) {
           {/* Basic Info */}
           <Text style={s.sectionLabel}>Basic Info</Text>
           <Field colors={colors} styles={s} label="Pitch Name *" value={name} onChangeText={setName} placeholder="e.g. Westlands Arena" />
+
+          <Text style={s.sectionLabel}>Pin Location on Map</Text>
+          <LocationPicker
+            value={coords}
+            onChange={(c, addr) => {
+              setCoords(c);
+              if (addr && !address) setAddress(addr);
+            }}
+          />
+
           <Field colors={colors} styles={s} label="Address *" value={address} onChangeText={setAddress} placeholder="e.g. Westlands Road, Nairobi" />
           <Field colors={colors} styles={s} label="City" value={city} onChangeText={setCity} placeholder="e.g. Nairobi" />
           <Field colors={colors} styles={s} label="Price per Hour (KSh) *" value={price} onChangeText={setPrice} placeholder="500 – 20,000" keyboardType="numeric" />

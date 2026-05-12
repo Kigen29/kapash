@@ -353,6 +353,16 @@ export default function LoginScreen({ navigation }: any) {
                     >
                       <Text style={s.devBypassTxt}>Enter as Owner</Text>
                     </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[s.devBypassBtn, { backgroundColor: '#A855F7' }]}
+                      onPress={async () => {
+                        try { await devLogin('ADMIN'); }
+                        catch (e: any) { Alert.alert('Dev login failed', e?.message || 'Unknown error. Is the backend running?'); }
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={s.devBypassTxt}>Enter as Admin</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               )}

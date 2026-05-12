@@ -6,11 +6,13 @@ export interface Pitch {
   address: string;
   city?: string;
   location?: string;
+  latitude?: number;
+  longitude?: number;
   pricePerHour: number;
   avgRating?: number;
   rating?: number;
   reviewCount?: number;
-  distance?: string;
+  distance?: number | string;
   type: string;
   size: string;
   images: PitchImage[];

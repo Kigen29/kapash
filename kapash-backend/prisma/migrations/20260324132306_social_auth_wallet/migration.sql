@@ -1,24 +1,50 @@
-/*
-  Warnings:
+-- Social auth + wallet + role rename. Idempotent so it can replay on shadow DB
+-- AND on databases where some pieces already exist (because earlier db push or hand SQL).
 
-  - A unique constraint covering the columns `[googleId]` on the table `users` will be added. If there are existing duplicate values, this will fail.
-  - A unique constraint covering the columns `[appleId]` on the table `users` will be added. If there are existing duplicate values, this will fail.
+-- 1. Add social-auth and wallet columns to users
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "googleId"      TEXT;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "appleId"       TEXT;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "walletBalance" DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phoneVerified" BOOLEAN NOT NULL DEFAULT false;
 
-*/
--- AlterEnum
--- This migration adds more than one value to an enum.
--- With PostgreSQL versions 11 and earlier, this is not possible
--- in a single migration. This can be worked around by creating
--- multiple migrations, each migration adding only one value to
--- the enum.
+-- 2. Phone becomes optional (social-auth users may not have a phone yet)
+ALTER TABLE "users" ALTER COLUMN "phone" DROP NOT NULL;
 
+-- 3. Backfill: mark existing phone-auth users as verified
+UPDATE "users" SET "phoneVerified" = true WHERE "phone" IS NOT NULL;
 
-ALTER TYPE "NotificationType" ADD VALUE 'PAYMENT_FAILED';
-ALTER TYPE "NotificationType" ADD VALUE 'SLOT_REMINDER';
-ALTER TYPE "NotificationType" ADD VALUE 'REVIEW_REQUEST';
+-- 4. Unique constraints on social IDs (multiple NULLs are allowed by Postgres default)
+CREATE UNIQUE INDEX IF NOT EXISTS "users_googleId_key" ON "users"("googleId");
+CREATE UNIQUE INDEX IF NOT EXISTS "users_appleId_key"  ON "users"("appleId");
 
--- CreateIndex
-CREATE UNIQUE INDEX "users_googleId_key" ON "users"("googleId");
+-- 5. Rename UserRole enum values: CUSTOMER → PLAYER, PITCH_OWNER → OWNER
+--    Wrap in DO block so we can detect whether the rename is already done.
+DO $$
+BEGIN
+  -- If the new value 'PLAYER' is not present yet, perform the rename.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_enum
+    WHERE enumlabel = 'PLAYER'
+      AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'UserRole')
+  ) THEN
+    CREATE TYPE "UserRole_new" AS ENUM ('PLAYER', 'OWNER', 'ADMIN');
 
--- CreateIndex
-CREATE UNIQUE INDEX "users_appleId_key" ON "users"("appleId");
+    ALTER TABLE "users" ALTER COLUMN "role" DROP DEFAULT;
+    ALTER TABLE "users" ALTER COLUMN "role" TYPE "UserRole_new" USING (
+      CASE role::text
+        WHEN 'CUSTOMER'    THEN 'PLAYER'::text
+        WHEN 'PITCH_OWNER' THEN 'OWNER'::text
+        ELSE role::text
+      END
+    )::"UserRole_new";
+    ALTER TABLE "users" ALTER COLUMN "role" SET DEFAULT 'PLAYER'::"UserRole_new";
+
+    DROP TYPE "UserRole";
+    ALTER TYPE "UserRole_new" RENAME TO "UserRole";
+  END IF;
+END $$;
+
+-- 6. Add missing NotificationType enum values (idempotent)
+ALTER TYPE "NotificationType" ADD VALUE IF NOT EXISTS 'PAYMENT_FAILED';
+ALTER TYPE "NotificationType" ADD VALUE IF NOT EXISTS 'SLOT_REMINDER';
+ALTER TYPE "NotificationType" ADD VALUE IF NOT EXISTS 'REVIEW_REQUEST';

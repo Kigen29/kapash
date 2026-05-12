@@ -154,7 +154,7 @@ export const AUTH = {
 
   logout: () => apiFetch('/auth/logout', { method: 'POST' }),
 
-  devLogin: (role: 'PLAYER' | 'OWNER') =>
+  devLogin: (role: 'PLAYER' | 'OWNER' | 'ADMIN') =>
     apiFetch('/auth/dev-login', { method: 'POST', body: { role } }, false),
 };
 

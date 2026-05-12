@@ -9,6 +9,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { ColorPalette, FONTS, FONT_WEIGHT, RADIUS, SPACING } from '../../constants/theme';
 import { usePitch } from '../../hooks/useData';
 import { PITCHES } from '../../services/api';
+import LocationPicker from '../../components/LocationPicker';
 
 const DAYS: { key: string; label: string }[] = [
   { key: 'monday',    label: 'Mon' },
@@ -33,6 +34,7 @@ export default function EditPitchScreen({ route, navigation }: Props) {
 
   const [name, setName]     = useState('');
   const [price, setPrice]   = useState('');
+  const [coords, setCoords] = useState({ latitude: -1.2649, longitude: 36.8025 });
   const [openTime, setOpenTime]   = useState('06:00');
   const [closeTime, setCloseTime] = useState('22:00');
   const [openDays, setOpenDays]   = useState<string[]>(DAYS.map(d => d.key));
@@ -45,6 +47,9 @@ export default function EditPitchScreen({ route, navigation }: Props) {
     if (!pitch) return;
     setName(pitch.name || '');
     setPrice(String(pitch.pricePerHour ?? ''));
+    if (typeof pitch.latitude === 'number' && typeof pitch.longitude === 'number') {
+      setCoords({ latitude: pitch.latitude, longitude: pitch.longitude });
+    }
 
     const oh: any = pitch.operatingHours || {};
     // Pick first available day to seed open/close (works for old `mon` and new `monday` keys)
@@ -80,6 +85,8 @@ export default function EditPitchScreen({ route, navigation }: Props) {
       await PITCHES.update(pitchId, {
         name: name.trim(),
         pricePerHour: priceNum,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
         operatingHours,
       });
       await refetch();
@@ -155,6 +162,9 @@ export default function EditPitchScreen({ route, navigation }: Props) {
             placeholderTextColor={colors.textMuted}
             keyboardType="numeric"
           />
+
+          <Text style={s.sectionLabel}>Location</Text>
+          <LocationPicker value={coords} onChange={(c) => setCoords(c)} />
 
           <Text style={s.sectionLabel}>Operating Hours</Text>
           <View style={s.hoursRow}>

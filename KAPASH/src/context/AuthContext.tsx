@@ -86,7 +86,7 @@ interface AuthContextType extends AuthState {
   logout: () => Promise<void>;
   updateUser: (data: Partial<User>) => void;
   clearError: () => void;
-  devLogin: (role: 'PLAYER' | 'OWNER') => Promise<void>;
+  devLogin: (role: 'PLAYER' | 'OWNER' | 'ADMIN') => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -186,7 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // DEV ONLY — bypass auth to preview screens. Calls backend /auth/dev-login to get real tokens
   // so authenticated endpoints (pitches, bookings, dashboard, etc.) actually work.
-  const devLogin = useCallback(async (role: 'PLAYER' | 'OWNER') => {
+  const devLogin = useCallback(async (role: 'PLAYER' | 'OWNER' | 'ADMIN') => {
     try {
       console.log('[devLogin] calling backend with role:', role);
       const { data } = await AUTH.devLogin(role);

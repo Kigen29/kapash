@@ -293,7 +293,8 @@ export async function verifyPhoneLink(req: Request, res: Response) {
 // ── Dev Login (DEV ONLY — bypass auth for screen testing) ─────────────────────
 
 const devLoginSchema = z.object({
-  role: z.enum(['PLAYER', 'OWNER']),
+  role: z.enum(['PLAYER', 'OWNER', 'ADMIN']),
+  adminTier: z.enum(['SUPER', 'OPERATIONS', 'FINANCE', 'SUPPORT']).optional(),
 });
 
 export async function devLogin(req: Request, res: Response) {
@@ -301,23 +302,48 @@ export async function devLogin(req: Request, res: Response) {
     throw new AppError('Not available in production.', 403);
   }
 
-  const { role } = devLoginSchema.parse(req.body);
+  const { role, adminTier } = devLoginSchema.parse(req.body);
 
-  const phone = role === 'OWNER' ? '+254700000001' : '+254700000002';
-  const email = role === 'OWNER' ? 'dev-owner@kapash.local' : 'dev-player@kapash.local';
-  const name  = role === 'OWNER' ? 'Dev Owner' : 'Dev Player';
+  // For ADMIN, the tier picks which dev account we use so the user can test each permission level.
+  let phone: string, email: string, name: string;
+  if (role === 'ADMIN') {
+    const tier = adminTier || 'SUPER';
+    const adminCreds: Record<string, { phone: string; email: string; name: string }> = {
+      SUPER:      { phone: '+254700000003', email: 'dev-admin-super@kapash.local',      name: 'Dev Super Admin' },
+      OPERATIONS: { phone: '+254700000004', email: 'dev-admin-operations@kapash.local', name: 'Dev Operations' },
+      FINANCE:    { phone: '+254700000005', email: 'dev-admin-finance@kapash.local',    name: 'Dev Finance' },
+      SUPPORT:    { phone: '+254700000006', email: 'dev-admin-support@kapash.local',    name: 'Dev Support' },
+    };
+    ({ phone, email, name } = adminCreds[tier]);
+  } else if (role === 'OWNER') {
+    ({ phone, email, name } = { phone: '+254700000001', email: 'dev-owner@kapash.local',  name: 'Dev Owner' });
+  } else {
+    ({ phone, email, name } = { phone: '+254700000002', email: 'dev-player@kapash.local', name: 'Dev Player' });
+  }
 
   let user = await (prisma.user as any).findUnique({ where: { phone } });
   if (!user) {
     user = await (prisma.user as any).create({
-      data: { phone, email, name, role, isVerified: true, phoneVerified: true },
+      data: {
+        phone, email, name, role,
+        isVerified: true, phoneVerified: true,
+        ...(role === 'ADMIN' && { adminTier: adminTier || 'SUPER' }),
+      },
     });
-  } else if (user.role !== role) {
-    user = await (prisma.user as any).update({ where: { id: user.id }, data: { role } });
+  } else {
+    // Keep role/tier in sync with the dev login request
+    const updates: any = {};
+    if (user.role !== role) updates.role = role;
+    if (role === 'ADMIN' && user.adminTier !== (adminTier || 'SUPER')) updates.adminTier = adminTier || 'SUPER';
+    if (Object.keys(updates).length) {
+      user = await (prisma.user as any).update({ where: { id: user.id }, data: updates });
+    }
   }
 
-  // Seed sample data so screens have something to render
-  await seedDevData(user.id, role).catch(err => console.error('Dev seed failed:', err));
+  // Seed sample data so screens have something to render (PLAYER + OWNER only — admin uses real data)
+  if (role !== 'ADMIN') {
+    await seedDevData(user.id, role as 'PLAYER' | 'OWNER').catch(err => console.error('Dev seed failed:', err));
+  }
 
   await issueTokensForUser(res, user.id, user.role, false, user);
 }

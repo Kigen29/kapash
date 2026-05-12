@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useFeaturedPitches, useNotifications, usePitches } from '../../hooks/useData';
+import { useUserLocation } from '../../hooks/useUserLocation';
 import { ColorPalette, FONTS, FONT_WEIGHT, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 
 const PITCH_TYPES = ['All', 'Football', 'Basketball', 'Tennis', 'Futsal', 'Rugby'];
@@ -42,10 +43,14 @@ export default function HomeScreen({ navigation }: any) {
     return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); };
   }, [inputValue]);
 
+  const { coords: userCoords } = useUserLocation();
+
   const featured = useFeaturedPitches();
   const pitches = usePitches({
     search: debouncedSearch || undefined,
     pitchType: activeType === 'All' ? undefined : activeType.toUpperCase(),
+    latitude: userCoords?.latitude,
+    longitude: userCoords?.longitude,
   });
   const { data: notifData } = useNotifications();
   const unreadCount = Array.isArray(notifData) ? notifData.filter((n: any) => !n.isRead).length : 0;
@@ -274,7 +279,13 @@ function PitchCard({ pitch, onPress, styles: s, colors }: { pitch: any; onPress:
         ) : null}
         <View style={s.pitchMeta}>
           {type ? <Text style={s.pitchType}>{formatType(type)}</Text> : null}
-          {pitch.distance ? <Text style={s.pitchDistance}>{pitch.distance}</Text> : null}
+          {pitch.distance !== undefined && pitch.distance !== null ? (
+            <Text style={s.pitchDistance}>
+              {typeof pitch.distance === 'number'
+                ? `${pitch.distance.toFixed(1)} km away`
+                : pitch.distance}
+            </Text>
+          ) : null}
         </View>
         <View style={s.pitchBottom}>
           <Text style={s.pitchPrice}>

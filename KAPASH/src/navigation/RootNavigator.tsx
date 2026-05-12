@@ -14,6 +14,7 @@ import VerifyPhoneScreen from '../screens/auth/VerifyPhoneScreen';
 // Tab navigators
 import UserTabNavigator from './UserTabNavigator';
 import OwnerTabNavigator from './OwnerTabNavigator';
+import AdminFallbackScreen from '../screens/AdminFallbackScreen';
 
 // User screens
 import PitchDetailsScreen from '../screens/user/PitchDetailsScreen';
@@ -64,10 +65,16 @@ export default function RootNavigator() {
         ) : (
           // ─── APP STACK ───────────────────────────────────────────────────
           <>
-            {/* Main tabs — ✅ FIXED: 'OWNER' matches updated DB enum */}
+            {/* Main tabs — role-aware: admin gets a "web only" fallback screen */}
             <Stack.Screen
               name="Main"
-              component={user?.role === 'OWNER' ? OwnerTabNavigator : UserTabNavigator}
+              component={
+                user?.role === 'ADMIN'
+                  ? AdminFallbackScreen
+                  : user?.role === 'OWNER'
+                    ? OwnerTabNavigator
+                    : UserTabNavigator
+              }
             />
 
             {/* Booking flow */}
