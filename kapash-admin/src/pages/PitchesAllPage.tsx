@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { MapPin, Search, MoreHorizontal } from 'lucide-react';
+import { MapPin, Search, Pencil, Plus, Trash2 } from 'lucide-react';
 import { ADMIN } from '../api/admin';
 import type { PitchStatus } from '../api/types';
 import { StatusBadge } from '../components/StatusBadge';
 import { Pagination } from '../components/Pagination';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { DangerConfirm } from '../components/DangerConfirm';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { formatKsh, formatDate } from '../lib/utils';
 
@@ -43,14 +44,21 @@ export function PitchesAllPage() {
       qc.invalidateQueries({ queryKey: ['admin', 'stats'] });
     },
   });
+  const deletePitch = useMutation({
+    mutationFn: (id: string) => ADMIN.pitches.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'pitches'] }),
+  });
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <MapPin className="w-6 h-6 text-brand" /> Pitches
-        </h1>
-        <p className="text-sm text-[hsl(var(--muted-fg))] mt-1">All pitches across the platform.</p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <MapPin className="w-6 h-6 text-brand" /> Pitches
+          </h1>
+          <p className="text-sm text-[hsl(var(--muted-fg))] mt-1">All pitches across the platform.</p>
+        </div>
+        <Link to="/pitches/new" className="btn-primary"><Plus className="w-4 h-4" />New pitch</Link>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -121,9 +129,16 @@ export function PitchesAllPage() {
                         onConfirm={async () => { await setStatusMutation.mutateAsync({ id: p.id, status: 'ACTIVE' }); }}
                       />
                     )}
-                    <Link to={`/pitches/${p.id}`} className="btn-ghost btn-sm" aria-label="View pitch">
-                      <MoreHorizontal className="w-4 h-4" />
+                    <Link to={`/pitches/${p.id}/edit`} className="btn-ghost btn-sm" aria-label="Edit pitch">
+                      <Pencil className="w-3.5 h-3.5" />
                     </Link>
+                    <DangerConfirm
+                      trigger={<button type="button" className="btn-ghost btn-sm" aria-label="Delete pitch"><Trash2 className="w-3.5 h-3.5 text-red-500" /></button>}
+                      title={`Delete "${p.name}"?`}
+                      body="Pitches with active or upcoming bookings can't be deleted — suspend them instead. Pitches without bookings become INACTIVE (soft delete)."
+                      confirmText={p.name}
+                      onConfirm={async () => { await deletePitch.mutateAsync(p.id); }}
+                    />
                   </div>
                 </td>
               </tr>

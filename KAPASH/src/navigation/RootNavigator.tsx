@@ -10,6 +10,7 @@ export const navigationRef = createRef<NavigationContainerRef<any>>();
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
 import VerifyPhoneScreen from '../screens/auth/VerifyPhoneScreen';
+import CorporateSignupScreen from '../screens/auth/CorporateSignupScreen';
 
 // Tab navigators
 import UserTabNavigator from './UserTabNavigator';
@@ -53,9 +54,10 @@ export default function RootNavigator() {
         {!isAuthenticated ? (
           // ─── AUTH STACK ─────────────────────────────────────────────────
           <>
-            <Stack.Screen name="Login"       component={LoginScreen} />
-            <Stack.Screen name="SignUp"      component={SignUpScreen} />
-            <Stack.Screen name="VerifyPhone" component={VerifyPhoneScreen} />
+            <Stack.Screen name="Login"            component={LoginScreen} />
+            <Stack.Screen name="SignUp"           component={SignUpScreen} />
+            <Stack.Screen name="VerifyPhone"      component={VerifyPhoneScreen} />
+            <Stack.Screen name="CorporateSignup" component={CorporateSignupScreen} options={{ animation: 'slide_from_bottom' }} />
           </>
         ) : requiresPhoneVerification ? (
           // ─── PHONE VERIFICATION REQUIRED (social auth new users) ────────

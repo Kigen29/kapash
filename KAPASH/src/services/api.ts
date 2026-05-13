@@ -253,3 +253,33 @@ export const REVIEWS = {
   create: (body: { pitchId: string; bookingId?: string; rating: number; comment?: string }) =>
     apiFetch(`/reviews/pitches/${body.pitchId}`, { method: 'POST', body }),
 };
+
+// ─── CORPORATE (B2B accounts) ─────────────────────────────────────────────────
+export const CORPORATE = {
+  signup: (body: {
+    company: string; tradingName?: string;
+    contactName: string;
+    phone: string; email: string;
+    billingAddress: string; kraPin?: string;
+  }) => apiFetch('/corporate/signup', { method: 'POST', body }, false),
+
+  verifySignup: (phone: string, otp: string) =>
+    apiFetch('/corporate/signup/verify', { method: 'POST', body: { phone, otp } }, false),
+
+  me: () => apiFetch('/corporate/me'),
+  updateMe: (body: any) => apiFetch('/corporate/me', { method: 'PATCH', body }),
+
+  listBookers: () => apiFetch('/corporate/me/bookers'),
+  addBooker: (body: { name: string; phone: string; email?: string; isCorpAdmin?: boolean }) =>
+    apiFetch('/corporate/me/bookers', { method: 'POST', body }),
+  removeBooker: (userId: string) =>
+    apiFetch(`/corporate/me/bookers/${userId}`, { method: 'DELETE' }),
+
+  listEvents: () => apiFetch('/corporate/me/events'),
+  createEvent: (body: {
+    name: string; date: string; notes?: string;
+    bookings: { pitchId: string; startTime: string; endTime: string }[];
+  }) => apiFetch('/corporate/me/events', { method: 'POST', body }),
+
+  listInvoices: () => apiFetch('/corporate/me/invoices'),
+};

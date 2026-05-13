@@ -1,12 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { api, STORAGE, unwrap } from '../api/client';
-import type { AuthUser, UserRole } from '../api/types';
+import type { AuthUser, UserRole, AdminTier } from '../api/types';
 
 interface AuthCtx {
   user: AuthUser | null;
   isLoading: boolean;
   error: string | null;
-  loginWithDev: (role: UserRole) => Promise<AuthUser>;
+  loginWithDev: (role: UserRole, adminTier?: AdminTier) => Promise<AuthUser>;
   loginWithOtp: (phone: string, otp: string) => Promise<AuthUser>;
   sendOtp: (phone: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -74,9 +74,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return u;
   }, []);
 
-  const loginWithDev = useCallback(async (role: UserRole): Promise<AuthUser> => {
+  const loginWithDev = useCallback(async (role: UserRole, adminTier?: AdminTier): Promise<AuthUser> => {
     setError(null);
-    const res = await api.post('/auth/dev-login', { role });
+    const res = await api.post('/auth/dev-login', { role, ...(adminTier && { adminTier }) });
     const payload = res.data?.data ?? res.data;
     const u: AuthUser = payload.user;
     if (u.role !== 'ADMIN') {

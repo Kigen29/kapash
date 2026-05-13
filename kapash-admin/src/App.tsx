@@ -30,6 +30,8 @@ import { EventDetailPage } from './pages/EventDetailPage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { InvoiceDetailPage } from './pages/InvoiceDetailPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { PitchFormPage } from './pages/PitchFormPage';
+import { BookingFormPage } from './pages/BookingFormPage';
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -61,7 +63,9 @@ export default function App() {
 
               <Route path="pitches/pending"      element={<PitchesPendingPage />} />
               <Route path="pitches"              element={<PitchesAllPage />} />
+              <Route path="pitches/new"          element={<PitchFormPage />} />
               <Route path="pitches/:id"          element={<PitchDetailPage />} />
+              <Route path="pitches/:id/edit"     element={<PitchFormPage />} />
 
               <Route path="users"                element={<UsersPage />} />
               <Route path="users/new"            element={<UserFormPage />} />
@@ -69,6 +73,7 @@ export default function App() {
               <Route path="users/:id/edit"       element={<UserFormPage />} />
 
               <Route path="bookings"             element={<BookingsPage />} />
+              <Route path="bookings/new"         element={<BookingFormPage />} />
               <Route path="bookings/:id"         element={<BookingDetailPage />} />
 
               <Route path="payouts"              element={<PayoutsPage />} />

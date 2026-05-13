@@ -81,6 +81,7 @@ export interface User {
 export type RootStackParamList = {
   Login: undefined;
   SignUp: undefined;
+  CorporateSignup: undefined;
   VerifyPhone: { phone: string; isLinking?: boolean };
   Main: undefined;
   PitchDetails: { pitchId: string };

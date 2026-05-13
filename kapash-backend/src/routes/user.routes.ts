@@ -15,7 +15,8 @@ router.get('/me', async (req: AuthRequest, res: Response) => {
       id: true, name: true, phone: true, email: true,
       avatar: true, role: true, referralCode: true,
       referralCount: true, createdAt: true, phoneVerified: true,
-      walletBalance: true,
+      walletBalance: true, isVerified: true,
+      adminTier: true, corporateId: true, isCorpAdmin: true,
       _count: { select: { bookings: true } },
     },
   });

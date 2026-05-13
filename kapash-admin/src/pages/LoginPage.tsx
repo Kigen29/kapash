@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { errorMessage } from '../api/client';
+import type { AdminTier } from '../api/types';
 
 export function LoginPage() {
   const { sendOtp, loginWithOtp, loginWithDev } = useAuth();
@@ -38,11 +39,11 @@ export function LoginPage() {
     finally { setBusy(false); }
   };
 
-  const handleDev = async () => {
+  const handleDev = async (tier: AdminTier) => {
     setErr('');
     setBusy(true);
     try {
-      await loginWithDev('ADMIN');
+      await loginWithDev('ADMIN', tier);
       nav('/', { replace: true });
     } catch (e) { setErr(errorMessage(e)); }
     finally { setBusy(false); }
@@ -107,10 +108,16 @@ export function LoginPage() {
 
         {import.meta.env.DEV && (
           <div className="mt-6 pt-6 border-t border-[hsl(var(--border))]">
-            <p className="text-xs text-center text-[hsl(var(--muted-fg))] mb-2">Dev only</p>
-            <button onClick={handleDev} className="btn-outline w-full" disabled={busy}>
-              Use dev admin login
-            </button>
+            <p className="text-xs text-center text-[hsl(var(--muted-fg))] mb-3">Dev only — sign in as a specific admin tier</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => handleDev('SUPER')}      className="btn-outline" disabled={busy}>SUPER</button>
+              <button type="button" onClick={() => handleDev('OPERATIONS')} className="btn-outline" disabled={busy}>OPERATIONS</button>
+              <button type="button" onClick={() => handleDev('FINANCE')}    className="btn-outline" disabled={busy}>FINANCE</button>
+              <button type="button" onClick={() => handleDev('SUPPORT')}    className="btn-outline" disabled={busy}>SUPPORT</button>
+            </div>
+            <p className="text-[10px] text-center text-[hsl(var(--muted-fg))] mt-2">
+              Each tier creates/upgrades its dedicated dev user. SUPER sees everything; others see only their permitted sections.
+            </p>
           </div>
         )}
       </div>

@@ -63,6 +63,9 @@ function buildUserResponse(user: any) {
     isVerified:    user.isVerified,
     phoneVerified: user.phoneVerified ?? false,
     walletBalance: user.walletBalance ?? 0,
+    adminTier:     user.adminTier ?? null,
+    corporateId:   user.corporateId ?? null,
+    isCorpAdmin:   user.isCorpAdmin ?? false,
   };
 }
 

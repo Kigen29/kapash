@@ -328,6 +328,14 @@ export default function LoginScreen({ navigation }: any) {
                 </TouchableOpacity>
               </View>
 
+              <TouchableOpacity
+                onPress={() => navigation.navigate('CorporateSignup')}
+                style={{ alignItems: 'center', marginTop: SPACING.sm }}
+                hitSlop={6}
+              >
+                <Text style={s.grayTxt}>Booking for a company? <Text style={s.greenTxt}>Sign up as a corporate</Text></Text>
+              </TouchableOpacity>
+
               {/* DEV bypass */}
               {__DEV__ && step === 'social' && (
                 <View style={s.devBypassWrap}>

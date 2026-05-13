@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { CalendarCheck } from 'lucide-react';
+import { CalendarCheck, Plus } from 'lucide-react';
 import { ADMIN } from '../api/admin';
 import type { BookingStatus } from '../api/types';
 import { StatusBadge } from '../components/StatusBadge';
@@ -28,9 +28,12 @@ export function BookingsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><CalendarCheck className="w-6 h-6 text-brand" />Bookings</h1>
-        <p className="text-sm text-[hsl(var(--muted-fg))] mt-1">All bookings across the platform.</p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><CalendarCheck className="w-6 h-6 text-brand" />Bookings</h1>
+          <p className="text-sm text-[hsl(var(--muted-fg))] mt-1">All bookings across the platform.</p>
+        </div>
+        <Link to="/bookings/new" className="btn-primary"><Plus className="w-4 h-4" />New booking</Link>
       </div>
 
       <div className="flex flex-wrap gap-2 items-end">
